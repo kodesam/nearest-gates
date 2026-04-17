@@ -1,0 +1,127 @@
+{
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy)",
+  "design_philosophy": "A calming, highly functional, and reliable navigation tool for pilgrims in Masjid Al Haram. Uses deep spiritual colors (Forest Green, Gold) over high-contrast bone-white to reduce glare in the intense Makkah sun. Emphasizes one-handed usability with bottom-heavy interfaces and clear typography.",
+  "colors": {
+    "background": "#F9F7F3",
+    "surface": "#FFFFFF",
+    "primary": "#1E3F20",
+    "secondary": "#C8A951",
+    "accent_warning": "#D97706",
+    "accent_error": "#991B1B",
+    "text_primary": "#111827",
+    "text_secondary": "#4B5563",
+    "border": "#E5E7EB",
+    "map_route": "#3B82F6",
+    "map_user_location": "#2563EB"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "scale": {
+      "h1": "text-4xl tracking-tight font-bold text-gray-900",
+      "h2": "text-3xl tracking-tight font-semibold text-gray-900",
+      "h3": "text-xl font-medium text-gray-900",
+      "body": "text-base leading-relaxed text-gray-700",
+      "label": "text-sm font-medium tracking-wide uppercase text-gray-500",
+      "micro": "text-xs text-gray-500",
+      "distance_metric": "text-5xl tracking-tighter font-light text-primary"
+    }
+  },
+  "spacing_and_layout": {
+    "screen_padding": "px-4 py-6",
+    "card_padding": "p-5",
+    "element_gap": "gap-4",
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-full",
+      "bottom_sheet": "rounded-t-3xl",
+      "pill": "rounded-full"
+    }
+  },
+  "navigation": {
+    "type": "BottomTabNavigator",
+    "style": "bg-white border-t border-gray-100 pb-safe pt-2 shadow-lg",
+    "active_color": "#1E3F20",
+    "inactive_color": "#9CA3AF",
+    "tabs": [
+      {"name": "Map", "icon": "Map"},
+      {"name": "Gates", "icon": "DoorOpen"},
+      {"name": "Amenities", "icon": "Coffee"},
+      {"name": "Settings", "icon": "Settings"}
+    ]
+  },
+  "screens": {
+    "MapTab": {
+      "layout": "Full-screen map view with absolute positioned floating overlays",
+      "components": [
+        "Top Floating Pill: Online/Offline status indicator. Use glassmorphism (bg-white/90 backdrop-blur-md) bounded by rounded-full.",
+        "Right FABs: 'Center Location' and 'Toggle Map Layers'. Circular buttons, shadow-md, absolute right-4 bottom-32.",
+        "Bottom Sheet: Draggable sheet showing 'Nearest Gate' by default. Features a large distance metric (e.g., '150m') and a prominent 'Show Route' primary button."
+      ]
+    },
+    "GatesTab": {
+      "layout": "Vertical FlatList with Card items",
+      "components": [
+        "Header: 'Haram Gates' (text-3xl font-bold text-primary, mt-4 mb-2).",
+        "Search/Filter: Minimalist search input, bg-gray-100 rounded-full px-4 py-3 mb-4.",
+        "Gate Card: Row layout. Left: Green circular icon. Middle: Gate Name + Number. Right: Distance. bg-white rounded-2xl p-4 shadow-sm border border-gray-100."
+      ]
+    },
+    "AmenitiesTab": {
+      "layout": "Sticky horizontal category pills + Vertical FlatList",
+      "components": [
+        "Category ScrollView: Horizontal pills for 'Grocery', 'Restaurant', 'Bus', 'Taxi', 'Meqat'. Active pill: bg-primary text-white. Inactive: bg-gray-100 text-gray-600.",
+        "Amenity Card: Similar layout to Gate Card, incorporating specific category icons (e.g., ShoppingCart, Utensils)."
+      ]
+    },
+    "SettingsTab": {
+      "layout": "Grouped ScrollView List",
+      "components": [
+        "Hero Image: Top header image showing the mosque interior.",
+        "Offline Maps Section: Progress bar for downloaded tiles, 'Download Makkah Region' CTA.",
+        "Preferences Section: Distance unit toggle (km/m), Sync data manually button."
+      ]
+    }
+  },
+  "components": {
+    "cards": "Prioritize flat, cardless designs where possible. When cards are needed for touch targets, use bg-white rounded-2xl with a very subtle shadow (shadow-sm) and 1px border (border-border).",
+    "buttons": "Primary buttons: bg-primary text-white rounded-full py-4 px-6 items-center justify-center. Ensure all touch targets are at least 48x48 points for mobile accessibility.",
+    "bottom_sheet": "Must use a prominent drag indicator (pill) at the top. Background should be solid white to obscure the map cleanly. Add shadow-xl to the top edge.",
+    "map_markers": "User location: pulsing blue dot with a transparent blue aura. Gates: Dark green pin icon. Amenities: Gold/Sand pin icon."
+  },
+  "icons": {
+    "library": "lucide-react-native",
+    "rules": "Use strokeWidth 2.0. Standard size 24px. For empty states, use size 48px with text-gray-300."
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1719194981461-fa0ec450999e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwyfHxpc2xhbWljJTIwZ2VvbWV0cnklMjBwYXR0ZXJuJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzY0NTcyMTl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Subtle white Islamic geometry pattern",
+        "category": "backgrounds",
+        "usage": "Use as a low opacity background (opacity-5 to opacity-10) for empty states or header areas in the Settings/Gates tabs."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1647177156544-0d51fb7c900c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwyfHxtYWtrYWglMjBtYXNqaWQlMjBhbCUyMGhhcmFtfGVufDB8fHx8MTc3NjQ1NzIxOXww&ixlib=rb-4.1.0&q=85",
+        "description": "View of the inside of Masjid Al Haram",
+        "category": "hero",
+        "usage": "Use as a hero header image for the Settings tab to add spiritual immersion."
+      }
+    ]
+  },
+  "accessibility_and_motion": {
+    "motion": "Use React Native Reanimated or LayoutAnimation for smooth BottomSheet transitions and list filtering. Map region changes should animate fluidly.",
+    "testing": "All interactive elements MUST have a 'testID' attribute (React Native equivalent of data-testid). E.g., testID='tab-map', testID='btn-download-offline'."
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: This is a React Native Expo app. You MUST use React Native primitives (View, Text, FlatList, TouchableOpacity) and Native UI patterns.",
+    "Do NOT use HTML elements (div, span) or standard Shadcn UI components meant for the web.",
+    "Use 'react-native-maps' with 'UrlTile' pointing to OpenStreetMap for the map implementation.",
+    "Implement offline tile caching using 'expo-file-system'.",
+    "Use '@gorhom/bottom-sheet' for the interactive map overlay.",
+    "Use 'NativeWind' for styling. The classes provided in the typography and layout sections are Tailwind classes intended to be used with NativeWind (className prop).",
+    "Ensure touch targets (TouchableOpacity/Pressable) are a minimum of 48x48 points.",
+    "Apply 'testID' instead of 'data-testid' for testing purposes."
+  ]
+}
