@@ -4,11 +4,12 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import random
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -143,6 +144,114 @@ async def get_sync_status():
         "last_synced": datetime.now(timezone.utc).isoformat(),
         "gates_count": gates_count,
         "amenities_count": amenities_count,
+    }
+
+
+# Base density weights - south gates near Kaaba entrance are busier
+GATE_BASE_DENSITY = {
+    "g1": 75, "g2": 80, "g3": 70, "g4": 65, "g5": 72, "g6": 60, "g7": 55,
+    "g8": 40, "g9": 35, "g10": 30, "g11": 25, "g12": 35, "g13": 45, "g14": 50,
+    "g15": 40, "g16": 55, "g17": 50, "g18": 45, "g19": 70, "g20": 55, "g21": 50,
+    "g22": 65, "g23": 60, "g24": 55, "g25": 50,
+}
+
+_density_cache = {"data": None, "updated_at": None}
+
+
+def get_density_level(pct: int) -> str:
+    if pct < 30:
+        return "low"
+    if pct < 55:
+        return "medium"
+    if pct < 80:
+        return "high"
+    return "very_high"
+
+
+async def generate_density_data():
+    now = datetime.now(timezone.utc)
+    # Refresh if cache is older than 30 seconds
+    if _density_cache["data"] and _density_cache["updated_at"]:
+        elapsed = (now - _density_cache["updated_at"]).total_seconds()
+        if elapsed < 30:
+            return _density_cache["data"]
+
+    gates = await db.gates.find({}, {"_id": 0}).to_list(200)
+    result = []
+    for gate in gates:
+        gate_id = gate.get("id", "")
+        base = GATE_BASE_DENSITY.get(gate_id, 50)
+        # Add random drift of +-15
+        drift = random.randint(-15, 15)
+        pct = max(5, min(95, base + drift))
+        level = get_density_level(pct)
+        result.append({
+            "gate_id": gate_id,
+            "gate_number": gate.get("number"),
+            "name_en": gate.get("name_en"),
+            "density_percentage": pct,
+            "density_level": level,
+            "updated_at": now.isoformat(),
+        })
+
+    _density_cache["data"] = result
+    _density_cache["updated_at"] = now
+    return result
+
+
+@api_router.get("/gates/density")
+async def get_gates_density():
+    density_data = await generate_density_data()
+    return {"density": density_data, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@api_router.get("/gates/recommend")
+async def get_gate_recommendation(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+):
+    """Recommend the best gate based on distance + crowd density score."""
+    density_data = await generate_density_data()
+    gates = await db.gates.find({}, {"_id": 0}).to_list(200)
+
+    recommendations = []
+    for gate in gates:
+        gate_id = gate.get("id", "")
+        density_info = next((d for d in density_data if d["gate_id"] == gate_id), None)
+        density_pct = density_info["density_percentage"] if density_info else 50
+
+        # Calculate distance if user location provided
+        dist = 0
+        if lat is not None and lng is not None:
+            import math
+            R = 6371000
+            dLat = math.radians(gate["latitude"] - lat)
+            dLon = math.radians(gate["longitude"] - lng)
+            a = (math.sin(dLat / 2) ** 2 +
+                 math.cos(math.radians(lat)) * math.cos(math.radians(gate["latitude"])) *
+                 math.sin(dLon / 2) ** 2)
+            dist = R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        # Score: lower is better. Weighted: 40% distance (normalized), 60% density
+        dist_score = dist / 1000  # km
+        density_score = density_pct / 100
+        combined_score = (0.4 * dist_score) + (0.6 * density_score)
+
+        recommendations.append({
+            **gate,
+            "density_percentage": density_pct,
+            "density_level": get_density_level(density_pct),
+            "distance_m": round(dist),
+            "score": round(combined_score, 3),
+        })
+
+    recommendations.sort(key=lambda x: x["score"])
+    best = recommendations[0] if recommendations else None
+
+    return {
+        "recommended_gate": best,
+        "all_ranked": recommendations[:5],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

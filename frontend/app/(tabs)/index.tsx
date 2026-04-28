@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { KAABA_LOCATION } from '../../src/data/haramData';
 import { formatDistance, bearing, bearingToArrow, haversineDistance } from '../../src/utils/location';
+import NotificationBanner from '../../src/components/NotificationBanner';
 
 const COLORS = {
   primary: '#1E3F20',
@@ -19,6 +20,13 @@ const COLORS = {
   offline: '#EF4444',
 };
 
+const DENSITY_COLORS: Record<string, string> = {
+  low: '#22C55E',
+  medium: '#F59E0B',
+  high: '#F97316',
+  very_high: '#EF4444',
+};
+
 function getMapHtml() {
   return `<!DOCTYPE html>
 <html><head>
@@ -29,11 +37,12 @@ function getMapHtml() {
 *{margin:0;padding:0}
 html,body,#map{width:100%;height:100%}
 .user-dot{background:#2563EB;border:3px solid #fff;border-radius:50%;width:18px;height:18px;box-shadow:0 0 0 8px rgba(37,99,235,0.25)}
-.gate-dot{background:#1E3F20;border:2px solid #fff;border-radius:50%;width:14px;height:14px;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
+.gate-dot{border:2px solid #fff;border-radius:50%;width:14px;height:14px;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
 .amenity-dot{border:2px solid #fff;border-radius:50%;width:12px;height:12px;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
 .kaaba-marker{background:#000;border:2px solid #C8A951;width:16px;height:16px;box-shadow:0 0 0 4px rgba(200,169,81,0.3)}
 .leaflet-popup-content{font-family:system-ui;font-size:13px}
 .leaflet-popup-content b{color:#1E3F20}
+.density-badge{display:inline-block;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:bold;color:#fff;margin-top:4px}
 </style>
 </head><body>
 <div id="map"></div>
@@ -43,6 +52,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r
 var kaabaIcon=L.divIcon({className:'',html:'<div class="kaaba-marker"></div>',iconSize:[20,20],iconAnchor:[10,10]});
 L.marker([21.4225,39.8262],{icon:kaabaIcon}).addTo(map).bindPopup('<b>The Holy Kaaba</b>');
 var userMarker=null,userCircle=null,gateLayer=L.layerGroup().addTo(map),amenityLayer=L.layerGroup().addTo(map),routeLine=null;
+var densityColors={low:'#22C55E',medium:'#F59E0B',high:'#F97316',very_high:'#EF4444'};
 function updateUser(lat,lng,acc){
   if(userMarker)map.removeLayer(userMarker);
   if(userCircle)map.removeLayer(userCircle);
@@ -50,11 +60,19 @@ function updateUser(lat,lng,acc){
   userMarker=L.marker([lat,lng],{icon:icon,zIndexOffset:1000}).addTo(map);
   if(acc&&acc<500)userCircle=L.circle([lat,lng],{radius:acc,fillColor:'#2563EB',fillOpacity:0.08,stroke:true,color:'#2563EB',weight:1,opacity:0.2}).addTo(map);
 }
-function setGates(gates){
+function setGates(gates,density){
   gateLayer.clearLayers();
+  var dMap={};
+  if(density)density.forEach(function(d){dMap[d.gate_id]=d});
   gates.forEach(function(g){
-    var icon=L.divIcon({className:'',html:'<div class="gate-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
-    var m=L.marker([g.latitude,g.longitude],{icon:icon}).bindPopup('<b>Gate '+g.number+'</b><br/>'+g.name_en+'<br/><span style="color:#666">'+g.name_ar+'</span>');
+    var d=dMap[g.id];
+    var color=d?densityColors[d.density_level]||'#1E3F20':'#1E3F20';
+    var pct=d?d.density_percentage+'%':'N/A';
+    var lvl=d?d.density_level:'unknown';
+    var icon=L.divIcon({className:'',html:'<div class="gate-dot" style="background:'+color+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    var badgeColor=d?densityColors[d.density_level]:'#999';
+    var popup='<b>Gate '+g.number+'</b><br/>'+g.name_en+'<br/><span style="color:#666">'+g.name_ar+'</span><br/><span class="density-badge" style="background:'+badgeColor+'">'+lvl.replace('_',' ')+' ('+pct+')</span>';
+    var m=L.marker([g.latitude,g.longitude],{icon:icon}).bindPopup(popup);
     m.on('click',function(){send({type:'gateSelect',gate:g})});
     gateLayer.addLayer(m);
   });
@@ -75,9 +93,11 @@ function showRoute(fLat,fLng,tLat,tLng){
   map.fitBounds(routeLine.getBounds(),{padding:[50,50]});
 }
 function clearRoute(){if(routeLine){map.removeLayer(routeLine);routeLine=null}}
+var storedGates=[],storedDensity=[];
 function handle(m){
   if(m.type==='loc')updateUser(m.lat,m.lng,m.acc);
-  if(m.type==='gates')setGates(m.data);
+  if(m.type==='gates'){storedGates=m.data;setGates(storedGates,storedDensity)}
+  if(m.type==='density'){storedDensity=m.data;setGates(storedGates,storedDensity)}
   if(m.type==='amenities')setAmenities(m.data);
   if(m.type==='center')centerOn(m.lat,m.lng,m.zoom);
   if(m.type==='route')showRoute(m.fLat,m.fLng,m.tLat,m.tLng);
@@ -157,10 +177,7 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
       source={{ html: getMapHtml() }}
       style={{ flex: 1 }}
       onMessage={(event: any) => {
-        try {
-          const data = JSON.parse(event.nativeEvent.data);
-          onMessage(data);
-        } catch {}
+        try { onMessage(JSON.parse(event.nativeEvent.data)); } catch {}
       }}
       javaScriptEnabled
       domStorageEnabled
@@ -170,15 +187,13 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 }
 
 export default function MapScreen() {
-  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading } = useApp();
+  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedGate, setSelectedGate] = useState<any>(null);
   const [showRouteVisible, setShowRouteVisible] = useState(false);
 
-  const inject = useCallback((msg: object) => {
-    mapRef.current?.inject(msg);
-  }, []);
+  const inject = useCallback((msg: object) => { mapRef.current?.inject(msg); }, []);
 
   const handleMessage = useCallback((data: any) => {
     if (data.type === 'ready') setMapReady(true);
@@ -186,10 +201,8 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => {
-    if (!mapReady) return;
-    if (userLocation) {
-      inject({ type: 'loc', lat: userLocation.latitude, lng: userLocation.longitude, acc: userLocation.accuracy });
-    }
+    if (!mapReady || !userLocation) return;
+    inject({ type: 'loc', lat: userLocation.latitude, lng: userLocation.longitude, acc: userLocation.accuracy });
   }, [userLocation, mapReady, inject]);
 
   useEffect(() => {
@@ -202,20 +215,23 @@ export default function MapScreen() {
     inject({ type: 'amenities', data: amenities });
   }, [amenities, mapReady, inject]);
 
+  // Send density data to map for color-coded markers
+  useEffect(() => {
+    if (!mapReady || Object.keys(densityMap).length === 0) return;
+    inject({ type: 'density', data: Object.values(densityMap) });
+  }, [densityMap, mapReady, inject]);
+
   const centerOnUser = () => {
     if (userLocation) inject({ type: 'center', lat: userLocation.latitude, lng: userLocation.longitude, zoom: 18 });
   };
-
   const centerOnKaaba = () => {
     inject({ type: 'center', lat: KAABA_LOCATION.latitude, lng: KAABA_LOCATION.longitude, zoom: 18 });
   };
-
   const toggleRoute = () => {
     const gate = selectedGate || nearestGate;
     if (!gate || !userLocation) return;
     if (showRouteVisible) {
-      inject({ type: 'clearRoute' });
-      setShowRouteVisible(false);
+      inject({ type: 'clearRoute' }); setShowRouteVisible(false);
     } else {
       inject({ type: 'route', fLat: userLocation.latitude, fLng: userLocation.longitude, tLat: gate.latitude, tLng: gate.longitude });
       setShowRouteVisible(true);
@@ -231,6 +247,12 @@ export default function MapScreen() {
     ? bearing(userLocation.latitude, userLocation.longitude, displayGate.latitude, displayGate.longitude)
     : 0;
 
+  const gateDensity = displayGate ? densityMap[displayGate.id] : null;
+  const densityColor = gateDensity ? DENSITY_COLORS[gateDensity.density_level] || COLORS.textSecondary : null;
+
+  // Get the latest unread notification
+  const latestNotif = notifications.find((n) => !n.read) || null;
+
   return (
     <View style={styles.container} testID="map-screen">
       <View style={styles.mapContainer}>
@@ -240,6 +262,19 @@ export default function MapScreen() {
           <MobileMapView onMessage={handleMessage} mapRef={mapRef} />
         )}
       </View>
+
+      {/* Notification Banner */}
+      <NotificationBanner
+        notification={latestNotif}
+        onDismiss={dismissNotification}
+        onPress={(n) => {
+          if (n.gate) {
+            setSelectedGate(n.gate);
+            inject({ type: 'center', lat: n.gate.latitude, lng: n.gate.longitude, zoom: 18 });
+          }
+          dismissNotification(n.id);
+        }}
+      />
 
       {/* Status Badge */}
       <SafeAreaView style={styles.statusContainer} edges={['top']}>
@@ -259,6 +294,16 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Density Legend */}
+      <View style={styles.legendContainer}>
+        {['low', 'medium', 'high', 'very_high'].map((lvl) => (
+          <View key={lvl} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: DENSITY_COLORS[lvl] }]} />
+            <Text style={styles.legendText}>{lvl === 'very_high' ? 'Full' : lvl.charAt(0).toUpperCase() + lvl.slice(1)}</Text>
+          </View>
+        ))}
+      </View>
+
       {/* Bottom Panel */}
       {displayGate && (
         <View style={styles.bottomPanel}>
@@ -272,18 +317,46 @@ export default function MapScreen() {
             )}
           </View>
           <View style={styles.panelContent}>
-            <View style={styles.gateIcon}>
+            <View style={[styles.gateIcon, gateDensity && { backgroundColor: densityColor || COLORS.primary }]}>
               <Ionicons name="enter" size={20} color={COLORS.surface} />
             </View>
             <View style={styles.panelMiddle}>
               <Text style={styles.panelGateName} numberOfLines={1}>{displayGate.name_en}</Text>
               <Text style={styles.panelGateArabic} numberOfLines={1}>{displayGate.name_ar} • Gate {displayGate.number}</Text>
+              {gateDensity && (
+                <View style={[styles.densityBadge, { backgroundColor: (densityColor || '#999') + '20' }]}>
+                  <View style={[styles.densityDot, { backgroundColor: densityColor || '#999' }]} />
+                  <Text style={[styles.densityText, { color: densityColor || '#999' }]}>
+                    {gateDensity.density_level.replace('_', ' ')} ({gateDensity.density_percentage}%)
+                  </Text>
+                </View>
+              )}
             </View>
             <View style={styles.panelRight}>
               <Text style={styles.panelDistance}>{formatDistance(displayDistance)}</Text>
               <Text style={styles.panelDirection}>{bearingToArrow(displayBearing)} {displayGate.side}</Text>
             </View>
           </View>
+
+          {/* Recommendation Banner inside panel */}
+          {recommendation && !selectedGate && recommendation.id !== nearestGate?.id && (
+            <TouchableOpacity
+              testID="btn-recommendation"
+              style={styles.recBanner}
+              onPress={() => {
+                setSelectedGate(recommendation);
+                inject({ type: 'center', lat: recommendation.latitude, lng: recommendation.longitude, zoom: 18 });
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bulb" size={16} color="#F59E0B" />
+              <Text style={styles.recText} numberOfLines={1}>
+                Better option: {recommendation.name_en} — {recommendation.density_level.replace('_', ' ')} crowd
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity testID="btn-show-route" style={[styles.routeButton, showRouteVisible && styles.routeButtonActive]} onPress={toggleRoute} activeOpacity={0.8}>
             <Ionicons name={showRouteVisible ? 'close' : 'navigate'} size={18} color={showRouteVisible ? COLORS.primary : COLORS.surface} />
             <Text style={[styles.routeButtonText, showRouteVisible && styles.routeButtonTextActive]}>{showRouteVisible ? 'Hide Route' : 'Show Route'}</Text>
@@ -305,19 +378,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   mapContainer: { flex: 1 },
   statusContainer: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', zIndex: 10 },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, marginTop: 8,
-  },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 8 },
   statusOnline: { backgroundColor: 'rgba(255,255,255,0.95)' },
   statusOffline: { backgroundColor: 'rgba(255,240,240,0.95)' },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
-  fabContainer: { position: 'absolute', right: 16, bottom: 230, zIndex: 10 },
-  fab: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.surface,
-    alignItems: 'center', justifyContent: 'center', elevation: 6,
+  fabContainer: { position: 'absolute', right: 16, bottom: 280, zIndex: 10 },
+  fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center', elevation: 6 },
+  legendContainer: {
+    position: 'absolute', left: 12, bottom: 280, zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 8,
   },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 2 },
+  legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
+  legendText: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
   bottomPanel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -327,14 +401,23 @@ const styles = StyleSheet.create({
   panelDragIndicator: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginBottom: 12 },
   panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   panelLabel: { fontSize: 12, fontWeight: '700', color: COLORS.secondary, textTransform: 'uppercase', letterSpacing: 1 },
-  panelContent: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  panelContent: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   gateIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   panelMiddle: { flex: 1, marginRight: 12 },
   panelGateName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   panelGateArabic: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  densityBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 4 },
+  densityDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
+  densityText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   panelRight: { alignItems: 'flex-end' },
   panelDistance: { fontSize: 22, fontWeight: '300', color: COLORS.primary },
   panelDirection: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  recBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB',
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10, gap: 6,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  recText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#92400E' },
   routeButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, borderRadius: 24, paddingVertical: 14, gap: 8,

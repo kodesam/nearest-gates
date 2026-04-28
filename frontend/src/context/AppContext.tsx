@@ -15,6 +15,39 @@ interface UserLocation {
   accuracy?: number;
 }
 
+export interface DensityInfo {
+  gate_id: string;
+  gate_number: number;
+  name_en: string;
+  density_percentage: number;
+  density_level: 'low' | 'medium' | 'high' | 'very_high';
+  updated_at: string;
+}
+
+export interface GateRecommendation {
+  id: string;
+  number: number;
+  name_en: string;
+  name_ar: string;
+  latitude: number;
+  longitude: number;
+  side: string;
+  density_percentage: number;
+  density_level: string;
+  distance_m: number;
+  score: number;
+}
+
+export interface Notification {
+  id: string;
+  type: 'recommendation' | 'density_alert' | 'info';
+  title: string;
+  message: string;
+  gate?: GateRecommendation;
+  timestamp: number;
+  read: boolean;
+}
+
 interface AppContextType {
   userLocation: UserLocation | null;
   locationError: string | null;
@@ -27,6 +60,10 @@ interface AppContextType {
   nearestGate: (GateData & { distance: number }) | null;
   gatesWithDistance: (GateData & { distance: number })[];
   amenitiesWithDistance: (AmenityData & { distance: number })[];
+  densityMap: Record<string, DensityInfo>;
+  notifications: Notification[];
+  dismissNotification: (id: string) => void;
+  recommendation: GateRecommendation | null;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -41,6 +78,10 @@ const AppContext = createContext<AppContextType>({
   nearestGate: null,
   gatesWithDistance: [],
   amenitiesWithDistance: [],
+  densityMap: {},
+  notifications: [],
+  dismissNotification: () => {},
+  recommendation: null,
 });
 
 export function useApp() {
@@ -55,16 +96,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [densityMap, setDensityMap] = useState<Record<string, DensityInfo>>({});
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [recommendation, setRecommendation] = useState<GateRecommendation | null>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
+  const densityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRecommendationRef = useRef<string>('');
 
   useEffect(() => {
     initLocation();
     loadCachedData();
     fetchFromAPI();
+    fetchDensityData();
+    // Poll density every 30 seconds
+    densityIntervalRef.current = setInterval(fetchDensityData, 30000);
     return () => {
       if (watchRef.current) watchRef.current.remove();
+      if (densityIntervalRef.current) clearInterval(densityIntervalRef.current);
     };
   }, []);
+
+  // Fetch recommendation when location changes
+  useEffect(() => {
+    if (userLocation) fetchRecommendation();
+  }, [userLocation]);
 
   const initLocation = async () => {
     try {
@@ -92,7 +147,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         }
       );
-    } catch (err) {
+    } catch {
       setLocationError('Could not get location');
     } finally {
       setIsLoading(false);
@@ -133,10 +188,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const fetchDensityData = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gates/density`);
+      if (res.ok) {
+        const data = await res.json();
+        const map: Record<string, DensityInfo> = {};
+        data.density.forEach((d: DensityInfo) => { map[d.gate_id] = d; });
+        setDensityMap(map);
+        setIsOnline(true);
+      }
+    } catch {
+      // Offline - density data unavailable
+    }
+  };
+
+  const fetchRecommendation = async () => {
+    if (!userLocation) return;
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/gates/recommend?lat=${userLocation.latitude}&lng=${userLocation.longitude}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const rec = data.recommended_gate;
+        if (rec) {
+          setRecommendation(rec);
+          // Create notification if recommendation changed
+          const recKey = `${rec.id}-${rec.density_level}`;
+          if (recKey !== lastRecommendationRef.current) {
+            lastRecommendationRef.current = recKey;
+            const notif: Notification = {
+              id: `rec-${Date.now()}`,
+              type: 'recommendation',
+              title: 'Gate Recommendation',
+              message: `${rec.name_en} (Gate ${rec.number}) has ${rec.density_level} crowd density and is ${rec.distance_m}m away`,
+              gate: rec,
+              timestamp: Date.now(),
+              read: false,
+            };
+            setNotifications((prev) => [notif, ...prev.slice(0, 9)]);
+          }
+        }
+      }
+    } catch {}
+  };
+
   const syncData = useCallback(async () => {
     setIsLoading(true);
     await fetchFromAPI();
+    await fetchDensityData();
     setIsLoading(false);
+  }, []);
+
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
   const gatesWithDistance = React.useMemo(() => {
@@ -181,6 +287,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         nearestGate,
         gatesWithDistance,
         amenitiesWithDistance,
+        densityMap,
+        notifications,
+        dismissNotification,
+        recommendation,
       }}
     >
       {children}

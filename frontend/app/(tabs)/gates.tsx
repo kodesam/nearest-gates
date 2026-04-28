@@ -17,10 +17,17 @@ const COLORS = {
   border: '#E5E7EB',
 };
 
+const DENSITY_COLORS: Record<string, string> = {
+  low: '#22C55E',
+  medium: '#F59E0B',
+  high: '#F97316',
+  very_high: '#EF4444',
+};
+
 const SIDE_FILTERS = ['all', 'north', 'south', 'east', 'west'];
 
 export default function GatesScreen() {
-  const { gatesWithDistance, userLocation } = useApp();
+  const { gatesWithDistance, userLocation, densityMap } = useApp();
   const [search, setSearch] = useState('');
   const [sideFilter, setSideFilter] = useState('all');
 
@@ -45,9 +52,11 @@ export default function GatesScreen() {
     const dir = userLocation
       ? bearing(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude)
       : 0;
+    const density = densityMap[item.id];
+    const densityColor = density ? DENSITY_COLORS[density.density_level] || COLORS.textSecondary : null;
     return (
       <View style={styles.card} testID={`gate-card-${item.id}`}>
-        <View style={styles.cardIcon}>
+        <View style={[styles.cardIcon, density && { backgroundColor: densityColor || COLORS.primary }]}>
           <Ionicons name="enter" size={18} color={COLORS.surface} />
         </View>
         <View style={styles.cardMiddle}>
@@ -55,6 +64,14 @@ export default function GatesScreen() {
           <Text style={styles.cardSubtitle} numberOfLines={1}>
             {item.name_ar} • Gate {item.number} • {item.side}
           </Text>
+          {density && (
+            <View style={[styles.densityBadge, { backgroundColor: (densityColor || '#999') + '18' }]}>
+              <View style={[styles.densityDot, { backgroundColor: densityColor || '#999' }]} />
+              <Text style={[styles.densityLabel, { color: densityColor || '#999' }]}>
+                {density.density_level.replace('_', ' ')} ({density.density_percentage}%)
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.cardRight}>
           <Text style={styles.cardDistance}>{formatDistance(item.distance)}</Text>
@@ -165,6 +182,9 @@ const styles = StyleSheet.create({
   cardRight: { alignItems: 'flex-end' },
   cardDistance: { fontSize: 18, fontWeight: '300', color: COLORS.primary },
   cardDirection: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  densityBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 5 },
+  densityDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
+  densityLabel: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 15, color: '#9CA3AF', marginTop: 12 },
 });
