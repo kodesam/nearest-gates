@@ -112,9 +112,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     fetchDensityData();
     // Poll density every 30 seconds
     densityIntervalRef.current = setInterval(fetchDensityData, 30000);
+    // Failsafe: stop loading after 5 seconds regardless
+    const timeout = setTimeout(() => setIsLoading(false), 5000);
     return () => {
       if (watchRef.current) watchRef.current.remove();
       if (densityIntervalRef.current) clearInterval(densityIntervalRef.current);
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -131,26 +134,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+      // Use a timeout wrapper to avoid hanging forever
+      const locPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
-      setUserLocation({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        accuracy: loc.coords.accuracy ?? undefined,
-      });
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+      const result = await Promise.race([locPromise, timeoutPromise]);
+      
+      if (result) {
+        setUserLocation({
+          latitude: result.coords.latitude,
+          longitude: result.coords.longitude,
+          accuracy: result.coords.accuracy ?? undefined,
+        });
+      } else {
+        setLocationError('Location timed out. Tap Enable to retry.');
+      }
+      
       watchRef.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, distanceInterval: 5, timeInterval: 3000 },
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
         (loc) => {
           setUserLocation({
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
             accuracy: loc.coords.accuracy ?? undefined,
           });
+          setLocationError(null);
         }
       );
     } catch {
-      setLocationError('Could not get location');
+      setLocationError('Could not get location. Tap Enable to retry.');
     } finally {
       setIsLoading(false);
     }
