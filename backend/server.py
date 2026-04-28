@@ -156,6 +156,23 @@ GATE_BASE_DENSITY = {
 }
 
 _density_cache = {"data": None, "updated_at": None}
+_live_density = {"data": None, "updated_at": None}  # Stores live-pushed data
+
+
+class LiveDensityInput(BaseModel):
+    gate_id: str
+    density_percentage: int = Field(ge=0, le=100)
+
+
+class LiveDensityBatch(BaseModel):
+    entries: List[LiveDensityInput]
+    source: str = "external"
+
+
+class DataSourceConfig(BaseModel):
+    mode: str = "simulation"  # "simulation" or "live"
+    live_api_url: Optional[str] = None
+    description: Optional[str] = None
 
 
 def get_density_level(pct: int) -> str:
@@ -168,9 +185,67 @@ def get_density_level(pct: int) -> str:
     return "very_high"
 
 
+async def get_data_source_config():
+    config = await db.config.find_one({"key": "data_source"}, {"_id": 0})
+    if not config:
+        return {"mode": "simulation", "live_api_url": None}
+    return config
+
+
+async def fetch_from_live_api(url: str, gates):
+    """Try to fetch density from an external live API."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client_http:
+            resp = await client_http.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Expected format: list of {gate_id, density_percentage}
+                if isinstance(data, list):
+                    return data
+                if isinstance(data, dict) and "density" in data:
+                    return data["density"]
+    except Exception as e:
+        logger.warning(f"Live API fetch failed: {e}")
+    return None
+
+
 async def generate_density_data():
     now = datetime.now(timezone.utc)
-    # Refresh if cache is older than 30 seconds
+
+    # Check if live data was pushed recently (within 2 minutes)
+    if _live_density["data"] and _live_density["updated_at"]:
+        elapsed = (now - _live_density["updated_at"]).total_seconds()
+        if elapsed < 120:
+            return _live_density["data"]
+
+    # Check data source config
+    config = await get_data_source_config()
+
+    # If live mode with API URL, try fetching
+    if config.get("mode") == "live" and config.get("live_api_url"):
+        gates = await db.gates.find({}, {"_id": 0}).to_list(200)
+        live_data = await fetch_from_live_api(config["live_api_url"], gates)
+        if live_data:
+            result = []
+            for entry in live_data:
+                gate_id = entry.get("gate_id", "")
+                pct = entry.get("density_percentage", 50)
+                gate_info = next((g for g in gates if g["id"] == gate_id), None)
+                result.append({
+                    "gate_id": gate_id,
+                    "gate_number": gate_info.get("number") if gate_info else 0,
+                    "name_en": gate_info.get("name_en", "") if gate_info else "",
+                    "density_percentage": pct,
+                    "density_level": get_density_level(pct),
+                    "source": "live",
+                    "updated_at": now.isoformat(),
+                })
+            _live_density["data"] = result
+            _live_density["updated_at"] = now
+            return result
+
+    # Fallback: Simulation mode
     if _density_cache["data"] and _density_cache["updated_at"]:
         elapsed = (now - _density_cache["updated_at"]).total_seconds()
         if elapsed < 30:
@@ -181,7 +256,6 @@ async def generate_density_data():
     for gate in gates:
         gate_id = gate.get("id", "")
         base = GATE_BASE_DENSITY.get(gate_id, 50)
-        # Add random drift of +-15
         drift = random.randint(-15, 15)
         pct = max(5, min(95, base + drift))
         level = get_density_level(pct)
@@ -191,6 +265,7 @@ async def generate_density_data():
             "name_en": gate.get("name_en"),
             "density_percentage": pct,
             "density_level": level,
+            "source": "simulation",
             "updated_at": now.isoformat(),
         })
 
@@ -202,7 +277,58 @@ async def generate_density_data():
 @api_router.get("/gates/density")
 async def get_gates_density():
     density_data = await generate_density_data()
-    return {"density": density_data, "timestamp": datetime.now(timezone.utc).isoformat()}
+    config = await get_data_source_config()
+    source = "live" if density_data and len(density_data) > 0 and density_data[0].get("source") == "live" else "simulation"
+    return {
+        "density": density_data,
+        "source": source,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@api_router.post("/gates/density/push")
+async def push_live_density(batch: LiveDensityBatch):
+    """Push live density data from an external source."""
+    now = datetime.now(timezone.utc)
+    gates = await db.gates.find({}, {"_id": 0}).to_list(200)
+    result = []
+    for entry in batch.entries:
+        gate_info = next((g for g in gates if g["id"] == entry.gate_id), None)
+        pct = entry.density_percentage
+        result.append({
+            "gate_id": entry.gate_id,
+            "gate_number": gate_info.get("number") if gate_info else 0,
+            "name_en": gate_info.get("name_en", "") if gate_info else "",
+            "density_percentage": pct,
+            "density_level": get_density_level(pct),
+            "source": batch.source,
+            "updated_at": now.isoformat(),
+        })
+    _live_density["data"] = result
+    _live_density["updated_at"] = now
+    return {"status": "ok", "entries_received": len(result), "source": batch.source}
+
+
+@api_router.get("/config/datasource")
+async def get_datasource():
+    config = await get_data_source_config()
+    return config
+
+
+@api_router.post("/config/datasource")
+async def set_datasource(config: DataSourceConfig):
+    """Set the data source mode: 'simulation' or 'live' with optional API URL."""
+    await db.config.update_one(
+        {"key": "data_source"},
+        {"$set": {"key": "data_source", "mode": config.mode, "live_api_url": config.live_api_url, "description": config.description}},
+        upsert=True,
+    )
+    # Clear caches when switching modes
+    _density_cache["data"] = None
+    _density_cache["updated_at"] = None
+    _live_density["data"] = None
+    _live_density["updated_at"] = None
+    return {"status": "ok", "mode": config.mode, "live_api_url": config.live_api_url}
 
 
 @api_router.get("/gates/recommend")

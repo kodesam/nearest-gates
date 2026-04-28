@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
-  Image,
+  TextInput, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 const COLORS = {
   primary: '#1E3F20',
@@ -18,12 +20,53 @@ const COLORS = {
   border: '#E5E7EB',
   online: '#22C55E',
   offline: '#EF4444',
+  live: '#2563EB',
 };
 
 export default function SettingsScreen() {
   const { isOnline, lastSynced, syncData, isLoading, gates, amenities } = useApp();
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [dataMode, setDataMode] = useState<'simulation' | 'live'>('simulation');
+  const [liveApiUrl, setLiveApiUrl] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    loadDataSourceConfig();
+  }, []);
+
+  const loadDataSourceConfig = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/config/datasource`);
+      if (res.ok) {
+        const data = await res.json();
+        setDataMode(data.mode || 'simulation');
+        setLiveApiUrl(data.live_api_url || '');
+      }
+    } catch {}
+    setConfigLoaded(true);
+  };
+
+  const saveDataSourceConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/config/datasource`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: dataMode,
+          live_api_url: dataMode === 'live' ? liveApiUrl || null : null,
+        }),
+      });
+      if (res.ok) {
+        Alert.alert('Saved', `Data source set to ${dataMode === 'live' ? 'Live' : 'Simulation'} mode`);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not save configuration');
+    }
+    setSavingConfig(false);
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -68,6 +111,86 @@ export default function SettingsScreen() {
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Haram Navigator</Text>
             <Text style={styles.heroSubtitle}>Masjid Al Haram, Makkah</Text>
+          </View>
+        </View>
+
+        {/* Data Source Config */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Crowd Data Source</Text>
+          <View style={styles.card}>
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                testID="btn-mode-simulation"
+                style={[styles.modeBtn, dataMode === 'simulation' && styles.modeBtnActive]}
+                onPress={() => setDataMode('simulation')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="dice-outline" size={18} color={dataMode === 'simulation' ? '#fff' : COLORS.textSecondary} />
+                <Text style={[styles.modeBtnText, dataMode === 'simulation' && styles.modeBtnTextActive]}>Simulation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="btn-mode-live"
+                style={[styles.modeBtn, dataMode === 'live' && styles.modeBtnLive]}
+                onPress={() => setDataMode('live')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="radio-outline" size={18} color={dataMode === 'live' ? '#fff' : COLORS.textSecondary} />
+                <Text style={[styles.modeBtnText, dataMode === 'live' && styles.modeBtnTextActive]}>Live Data</Text>
+              </TouchableOpacity>
+            </View>
+
+            {dataMode === 'simulation' && (
+              <View style={styles.modeInfo}>
+                <Ionicons name="information-circle-outline" size={16} color={COLORS.textSecondary} />
+                <Text style={styles.modeInfoText}>
+                  Using simulated crowd density based on historical patterns. Data refreshes every 30 seconds.
+                </Text>
+              </View>
+            )}
+
+            {dataMode === 'live' && (
+              <View>
+                <View style={styles.modeInfo}>
+                  <Ionicons name="flash-outline" size={16} color={COLORS.live} />
+                  <Text style={[styles.modeInfoText, { color: COLORS.live }]}>
+                    Connect to a live crowd data API or push data via the REST endpoint.
+                  </Text>
+                </View>
+                <Text style={styles.inputLabel}>Live API URL (optional)</Text>
+                <TextInput
+                  testID="input-live-api-url"
+                  style={styles.textInput}
+                  placeholder="https://api.example.com/crowd-density"
+                  placeholderTextColor="#9CA3AF"
+                  value={liveApiUrl}
+                  onChangeText={setLiveApiUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                <View style={styles.modeInfo}>
+                  <Ionicons name="code-slash-outline" size={14} color={COLORS.textSecondary} />
+                  <Text style={styles.modeInfoTextSmall}>
+                    Or push data via POST /api/gates/density/push with JSON body
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              testID="btn-save-datasource"
+              style={styles.saveBtn}
+              onPress={saveDataSourceConfig}
+              disabled={savingConfig}
+              activeOpacity={0.8}
+            >
+              {savingConfig ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              )}
+              <Text style={styles.saveBtnText}>{savingConfig ? 'Saving...' : 'Save Configuration'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -156,11 +279,12 @@ export default function SettingsScreen() {
             <Text style={styles.aboutText}>
               Haram Navigator helps you find the nearest gate of Masjid Al Haram
               and discover nearby amenities. Works offline with cached data.
+              Supports both simulated and live crowd density data.
             </Text>
             <View style={styles.divider} />
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Version</Text>
-              <Text style={styles.rowValue}>1.0.0</Text>
+              <Text style={styles.rowValue}>1.1.0</Text>
             </View>
           </View>
         </View>
@@ -198,6 +322,29 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
+  modeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  modeBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, borderRadius: 12, backgroundColor: '#F3F4F6', gap: 6,
+  },
+  modeBtnActive: { backgroundColor: COLORS.primary },
+  modeBtnLive: { backgroundColor: COLORS.live },
+  modeBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  modeBtnTextActive: { color: '#fff' },
+  modeInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 8, marginBottom: 4 },
+  modeInfoText: { flex: 1, fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  modeInfoTextSmall: { flex: 1, fontSize: 11, color: '#9CA3AF', lineHeight: 16 },
+  inputLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text, marginTop: 12, marginBottom: 6 },
+  textInput: {
+    backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: 14, color: COLORS.text,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, gap: 8, marginTop: 14,
+  },
+  saveBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   actionButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 16, gap: 10,
