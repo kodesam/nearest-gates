@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const { isOnline, lastSynced, syncData, isLoading, gates, amenities } = useApp();
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [refreshingOSM, setRefreshingOSM] = useState(false);
   const [dataMode, setDataMode] = useState<'simulation' | 'live'>('simulation');
   const [liveApiUrl, setLiveApiUrl] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
@@ -66,6 +67,23 @@ export default function SettingsScreen() {
       Alert.alert('Error', 'Could not save configuration');
     }
     setSavingConfig(false);
+  };
+
+  const handleRefreshOSM = async () => {
+    setRefreshingOSM(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/amenities/refresh`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        Alert.alert('Updated', `Loaded ${data.count} real amenities from OpenStreetMap`);
+        await syncData();
+      } else {
+        Alert.alert('Error', data.message || 'Could not refresh amenities');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not connect to server');
+    }
+    setRefreshingOSM(false);
   };
 
   const handleSync = async () => {
@@ -261,6 +279,23 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            testID="btn-refresh-osm"
+            style={styles.osmButton}
+            onPress={handleRefreshOSM}
+            disabled={refreshingOSM}
+            activeOpacity={0.8}
+          >
+            {refreshingOSM ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="globe-outline" size={18} color="#fff" />
+            )}
+            <Text style={styles.osmButtonText}>
+              {refreshingOSM ? 'Fetching from OSM...' : 'Refresh Amenities from OpenStreetMap'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             testID="btn-clear-cache"
             style={styles.clearButton}
             onPress={handleClearCache}
@@ -350,6 +385,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 16, gap: 10,
   },
   actionButtonText: { fontSize: 16, fontWeight: '600', color: COLORS.surface },
+  osmButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#2563EB', borderRadius: 16, paddingVertical: 14, gap: 8, marginTop: 10,
+  },
+  osmButtonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   clearButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.surface, borderRadius: 16, paddingVertical: 14,

@@ -110,10 +110,128 @@ async def startup():
 
     amenities_count = await db.amenities.count_documents({})
     if amenities_count == 0:
-        for amenity_data in AMENITIES_SEED:
-            amenity = Amenity(**amenity_data)
-            await db.amenities.insert_one(amenity.dict())
-        logger.info(f"Seeded {len(AMENITIES_SEED)} amenities")
+        # Try fetching real data from OpenStreetMap first
+        real_amenities = await fetch_osm_amenities()
+        if real_amenities and len(real_amenities) > 5:
+            for a in real_amenities:
+                await db.amenities.insert_one(a)
+            logger.info(f"Loaded {len(real_amenities)} real amenities from OpenStreetMap")
+        else:
+            for amenity_data in AMENITIES_SEED:
+                amenity = Amenity(**amenity_data)
+                await db.amenities.insert_one(amenity.dict())
+            logger.info(f"Seeded {len(AMENITIES_SEED)} fallback amenities")
+
+
+OVERPASS_API = "https://overpass-api.de/api/interpreter"
+OVERPASS_QUERY = """[out:json][timeout:30];
+(
+  node["amenity"~"restaurant|fast_food|cafe"](around:1000,21.4225,39.8262);
+  node["shop"~"supermarket|convenience|mall"](around:1000,21.4225,39.8262);
+  node["highway"="bus_stop"](around:1000,21.4225,39.8262);
+  node["amenity"="taxi"](around:1000,21.4225,39.8262);
+  node["amenity"="place_of_worship"]["religion"="muslim"](around:5000,21.4225,39.8262);
+);
+out body 150;"""
+
+
+async def fetch_osm_amenities():
+    """Fetch real amenities from OpenStreetMap Overpass API."""
+    import httpx
+    try:
+        query = (
+            '[out:json][timeout:30];'
+            '(node["amenity"~"restaurant|fast_food|cafe"](around:1000,21.4225,39.8262);'
+            'node["shop"~"supermarket|convenience|mall"](around:1000,21.4225,39.8262);'
+            'node["highway"="bus_stop"](around:1000,21.4225,39.8262);'
+            'node["amenity"="taxi"](around:1000,21.4225,39.8262);'
+            'node["amenity"="place_of_worship"]["religion"="muslim"](around:5000,21.4225,39.8262);'
+            ');out body 150;'
+        )
+        async with httpx.AsyncClient(timeout=20.0) as http:
+            resp = await http.post(
+                OVERPASS_API,
+                content=f"data={query}",
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": "HaramNavigator/1.0",
+                },
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Overpass API returned {resp.status_code}")
+                return None
+            data = resp.json()
+            elements = data.get("elements", [])
+            results = []
+            seen_ids = set()
+            counter = 0
+            for el in elements:
+                tags = el.get("tags", {})
+                lat = el.get("lat")
+                lon = el.get("lon")
+                if not lat or not lon:
+                    continue
+
+                name = tags.get("name:en") or tags.get("name") or None
+                if not name or name in seen_ids:
+                    continue
+                seen_ids.add(name)
+
+                # Categorize
+                amenity_tag = tags.get("amenity", "")
+                shop_tag = tags.get("shop", "")
+                highway_tag = tags.get("highway", "")
+
+                if amenity_tag in ("restaurant", "fast_food", "cafe"):
+                    category = "restaurant"
+                    cuisine = tags.get("cuisine", "")
+                    desc = f"{cuisine.replace(';', ', ')}" if cuisine else "Restaurant"
+                elif shop_tag:
+                    category = "grocery"
+                    desc = shop_tag.replace("_", " ").title()
+                elif highway_tag == "bus_stop":
+                    category = "bus_stop"
+                    desc = tags.get("operator", "Bus Stop")
+                elif amenity_tag == "taxi":
+                    category = "taxi_stand"
+                    desc = "Taxi Stand"
+                elif amenity_tag == "place_of_worship":
+                    category = "meqat"
+                    desc = tags.get("denomination", "Mosque")
+                else:
+                    continue
+
+                counter += 1
+                results.append({
+                    "id": f"osm_{el.get('id', counter)}",
+                    "name": name,
+                    "category": category,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "description": desc,
+                    "source": "openstreetmap",
+                })
+            return results
+    except Exception as e:
+        logger.warning(f"Failed to fetch from Overpass API: {e}")
+        return None
+
+
+@api_router.post("/amenities/refresh")
+async def refresh_amenities_from_osm():
+    """Re-fetch amenities from OpenStreetMap and replace cached data."""
+    real_amenities = await fetch_osm_amenities()
+    if not real_amenities or len(real_amenities) < 3:
+        return {"status": "error", "message": "Could not fetch from OpenStreetMap. Keeping existing data."}
+    await db.amenities.delete_many({})
+    for a in real_amenities:
+        await db.amenities.insert_one(a)
+    return {
+        "status": "ok",
+        "source": "openstreetmap",
+        "count": len(real_amenities),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @api_router.get("/")
