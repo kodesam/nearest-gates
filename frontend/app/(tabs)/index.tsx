@@ -222,18 +222,20 @@ export default function MapScreen() {
   }, [densityMap, mapReady, inject]);
 
   const centerOnUser = () => {
-    if (userLocation) inject({ type: 'center', lat: userLocation.latitude, lng: userLocation.longitude, zoom: 18 });
+    const loc = userLocation || KAABA_LOCATION;
+    inject({ type: 'center', lat: loc.latitude, lng: loc.longitude, zoom: 18 });
   };
   const centerOnKaaba = () => {
     inject({ type: 'center', lat: KAABA_LOCATION.latitude, lng: KAABA_LOCATION.longitude, zoom: 18 });
   };
   const toggleRoute = () => {
     const gate = selectedGate || nearestGate;
-    if (!gate || !userLocation) return;
+    if (!gate) return;
+    const fromLoc = userLocation || KAABA_LOCATION;
     if (showRouteVisible) {
       inject({ type: 'clearRoute' }); setShowRouteVisible(false);
     } else {
-      inject({ type: 'route', fLat: userLocation.latitude, fLng: userLocation.longitude, tLat: gate.latitude, tLng: gate.longitude });
+      inject({ type: 'route', fLat: fromLoc.latitude, fLng: fromLoc.longitude, tLat: gate.latitude, tLng: gate.longitude });
       setShowRouteVisible(true);
     }
   };
