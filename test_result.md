@@ -101,3 +101,162 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Create a mobile app that shows your current location in Masjid Al Haram of Makkah and the nearest gate of Al Haram to your location, also show all gates of all from your location. This map work in offline mode also, and can sync also to online, show near Amenities like grocery shop, restaurants, bus stop, taxi stand, meqat from your location"
+
+backend:
+  - task: "GET /api/gates - Return all 25 Haram gates"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented GET /api/gates endpoint with 25 seeded gates from MongoDB"
+
+  - task: "GET /api/amenities - Return all 20 amenities with optional category filter"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented GET /api/amenities with category query param filter"
+
+  - task: "GET /api/sync/status - Return sync status"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Returns gates_count, amenities_count, and last_synced timestamp"
+
+  - task: "MongoDB seed data on startup"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Seeds 25 gates and 20 amenities if collections are empty"
+
+frontend:
+  - task: "Map tab with Leaflet OpenStreetMap"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Leaflet map in iframe (web) / WebView (mobile) with CartoDB Voyager tiles, gate markers, amenity markers, Kaaba marker"
+
+  - task: "Nearest gate display in bottom panel"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Bottom panel shows nearest gate with name, arabic name, number, distance, direction, and show route button"
+
+  - task: "Gates list tab with search and side filters"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/gates.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "FlatList of 25 gates sorted by distance, searchable, filterable by side (north/south/east/west)"
+
+  - task: "Amenities list tab with category filters"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/amenities.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "FlatList of 20 amenities with horizontal category pill filter (restaurant, grocery, bus_stop, taxi_stand, meqat)"
+
+  - task: "Settings tab with offline/sync management"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/settings.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Shows connection status, cached data counts, sync button, clear cache button, about section"
+
+  - task: "Tab navigation (Map, Gates, Amenities, Settings)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Bottom tab navigation with Ionicons, forest green active color"
+
+  - task: "Offline data caching with AsyncStorage"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/context/AppContext.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Gates and amenities cached to AsyncStorage, loaded on app start, synced from API when online"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "GET /api/gates"
+    - "GET /api/amenities"
+    - "Map tab with Leaflet"
+    - "Gates list tab"
+    - "Amenities list tab"
+    - "Tab navigation"
+    - "Settings tab"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Initial implementation complete. All 4 tabs working - Map (Leaflet via iframe on web), Gates (25 gates with search/filter), Amenities (20 with category pills), Settings (sync/cache management). Backend seeded with 25 gates and 20 amenities in MongoDB. API endpoints: GET /api/gates, GET /api/amenities?category=X, GET /api/sync/status. Frontend URL: https://haram-locator.preview.emergentagent.com. Backend URL for API testing: https://haram-locator.preview.emergentagent.com/api. No auth required."
