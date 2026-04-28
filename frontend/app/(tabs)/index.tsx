@@ -187,7 +187,7 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 }
 
 export default function MapScreen() {
-  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance } = useApp();
+  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedGate, setSelectedGate] = useState<any>(null);
@@ -307,6 +307,30 @@ export default function MapScreen() {
           <Ionicons name="compass" size={22} color={COLORS.secondary} />
         </TouchableOpacity>
       </View>
+
+      {/* Location Error Banner */}
+      {!userLocation && !isLoading && (
+        <View style={styles.locationBanner} testID="location-error-banner">
+          <View style={styles.locationBannerContent}>
+            <Ionicons name="location-outline" size={20} color="#DC2626" />
+            <View style={styles.locationBannerText}>
+              <Text style={styles.locationBannerTitle}>Location not available</Text>
+              <Text style={styles.locationBannerMsg}>
+                {locationError || 'Enable location to see nearest gates from you'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="btn-enable-location"
+              style={styles.locationBannerBtn}
+              onPress={retryLocation}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={14} color="#fff" />
+              <Text style={styles.locationBannerBtnText}>Enable</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Density Legend */}
       <View style={styles.legendContainer}>
@@ -465,6 +489,21 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 2 },
   legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
   legendText: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
+  locationBanner: {
+    position: 'absolute', top: 40, left: 12, right: 12, zIndex: 15,
+  },
+  locationBannerContent: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2',
+    borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#FECACA', gap: 10,
+  },
+  locationBannerText: { flex: 1 },
+  locationBannerTitle: { fontSize: 13, fontWeight: '700', color: '#991B1B' },
+  locationBannerMsg: { fontSize: 11, color: '#B91C1C', marginTop: 2 },
+  locationBannerBtn: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3F20',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 4,
+  },
+  locationBannerBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
   bottomPanel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,

@@ -57,6 +57,7 @@ interface AppContextType {
   isLoading: boolean;
   lastSynced: string | null;
   syncData: () => Promise<void>;
+  retryLocation: () => Promise<void>;
   nearestGate: (GateData & { distance: number }) | null;
   gatesWithDistance: (GateData & { distance: number })[];
   amenitiesWithDistance: (AmenityData & { distance: number })[];
@@ -75,6 +76,7 @@ const AppContext = createContext<AppContextType>({
   isLoading: true,
   lastSynced: null,
   syncData: async () => {},
+  retryLocation: async () => {},
   nearestGate: null,
   gatesWithDistance: [],
   amenitiesWithDistance: [],
@@ -241,6 +243,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const retryLocation = useCallback(async () => {
+    setLocationError(null);
+    setIsLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Location permission denied. Please enable location in your device settings.');
+        setIsLoading(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setUserLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: loc.coords.accuracy ?? undefined,
+      });
+      if (watchRef.current) watchRef.current.remove();
+      watchRef.current = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, distanceInterval: 5, timeInterval: 3000 },
+        (l) => {
+          setUserLocation({
+            latitude: l.coords.latitude,
+            longitude: l.coords.longitude,
+            accuracy: l.coords.accuracy ?? undefined,
+          });
+        }
+      );
+      setLocationError(null);
+    } catch {
+      setLocationError('Could not get location. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const dismissNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
@@ -284,6 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         lastSynced,
         syncData,
+        retryLocation,
         nearestGate,
         gatesWithDistance,
         amenitiesWithDistance,
