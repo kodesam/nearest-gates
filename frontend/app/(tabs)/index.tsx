@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -187,11 +187,15 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 }
 
 export default function MapScreen() {
-  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation } = useApp();
+  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedGate, setSelectedGate] = useState<any>(null);
   const [showRouteVisible, setShowRouteVisible] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
+
+  // Top 5 nearest gates
+  const nearbyGates = useMemo(() => gatesWithDistance.slice(0, 5), [gatesWithDistance]);
 
   const inject = useCallback((msg: object) => { mapRef.current?.inject(msg); }, []);
 
@@ -252,6 +256,14 @@ export default function MapScreen() {
   const gateDensity = displayGate ? densityMap[displayGate.id] : null;
   const densityColor = gateDensity ? DENSITY_COLORS[gateDensity.density_level] || COLORS.textSecondary : null;
 
+  const selectNearbyGate = (gate: any) => {
+    setSelectedGate(gate);
+    setPanelExpanded(false);
+    setShowRouteVisible(false);
+    inject({ type: 'clearRoute' });
+    inject({ type: 'center', lat: gate.latitude, lng: gate.longitude, zoom: 18 });
+  };
+
   // Get the latest unread notification
   const latestNotif = notifications.find((n) => !n.read) || null;
 
@@ -308,15 +320,32 @@ export default function MapScreen() {
 
       {/* Bottom Panel */}
       {displayGate && (
-        <View style={styles.bottomPanel}>
-          <View style={styles.panelDragIndicator} />
+        <View style={[styles.bottomPanel, panelExpanded && styles.bottomPanelExpanded]}>
+          <TouchableOpacity
+            testID="btn-toggle-panel"
+            style={styles.panelDragArea}
+            onPress={() => setPanelExpanded(!panelExpanded)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.panelDragIndicator} />
+          </TouchableOpacity>
           <View style={styles.panelHeader}>
             <Text style={styles.panelLabel}>{selectedGate ? 'Selected Gate' : 'Nearest Gate'}</Text>
-            {selectedGate && (
-              <TouchableOpacity testID="btn-clear-selection" onPress={() => { setSelectedGate(null); setShowRouteVisible(false); inject({ type: 'clearRoute' }); }}>
-                <Ionicons name="close-circle" size={22} color={COLORS.textSecondary} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity
+                testID="btn-expand-nearby"
+                onPress={() => setPanelExpanded(!panelExpanded)}
+                style={styles.expandBtn}
+              >
+                <Ionicons name={panelExpanded ? 'chevron-down' : 'chevron-up'} size={16} color={COLORS.textSecondary} />
+                <Text style={styles.expandBtnText}>{panelExpanded ? 'Less' : 'Nearby'}</Text>
               </TouchableOpacity>
-            )}
+              {selectedGate && (
+                <TouchableOpacity testID="btn-clear-selection" onPress={() => { setSelectedGate(null); setShowRouteVisible(false); inject({ type: 'clearRoute' }); }}>
+                  <Ionicons name="close-circle" size={22} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <View style={styles.panelContent}>
             <View style={[styles.gateIcon, gateDensity && { backgroundColor: densityColor || COLORS.primary }]}>
@@ -340,8 +369,50 @@ export default function MapScreen() {
             </View>
           </View>
 
+          {/* Expanded: Nearby Gates List */}
+          {panelExpanded && (
+            <View style={styles.nearbySection}>
+              <Text style={styles.nearbySectionTitle}>Nearest Gates From You</Text>
+              <ScrollView style={styles.nearbyScroll} showsVerticalScrollIndicator={false}>
+                {nearbyGates.map((gate, idx) => {
+                  const gDensity = densityMap[gate.id];
+                  const gColor = gDensity ? DENSITY_COLORS[gDensity.density_level] || '#999' : COLORS.primary;
+                  const isSelected = displayGate?.id === gate.id;
+                  const dir = userLocation
+                    ? bearingToArrow(bearing(userLocation.latitude, userLocation.longitude, gate.latitude, gate.longitude))
+                    : '';
+                  return (
+                    <TouchableOpacity
+                      key={gate.id}
+                      testID={`nearby-gate-${gate.id}`}
+                      style={[styles.nearbyItem, isSelected && styles.nearbyItemSelected]}
+                      onPress={() => selectNearbyGate(gate)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.nearbyRank}>
+                        <Text style={styles.nearbyRankText}>{idx + 1}</Text>
+                      </View>
+                      <View style={[styles.nearbyDot, { backgroundColor: gColor }]} />
+                      <View style={styles.nearbyInfo}>
+                        <Text style={styles.nearbyName} numberOfLines={1}>{gate.name_en}</Text>
+                        <Text style={styles.nearbyMeta} numberOfLines={1}>
+                          Gate {gate.number} • {gate.side}
+                          {gDensity ? ` • ${gDensity.density_level.replace('_', ' ')} (${gDensity.density_percentage}%)` : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.nearbyRight}>
+                        <Text style={[styles.nearbyDist, { color: gColor }]}>{formatDistance(gate.distance)}</Text>
+                        {dir ? <Text style={styles.nearbyDir}>{dir}</Text> : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Recommendation Banner inside panel */}
-          {recommendation && !selectedGate && recommendation.id !== nearestGate?.id && (
+          {recommendation && !selectedGate && !panelExpanded && recommendation.id !== nearestGate?.id && (
             <TouchableOpacity
               testID="btn-recommendation"
               style={styles.recBanner}
@@ -397,12 +468,16 @@ const styles = StyleSheet.create({
   bottomPanel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    elevation: 12, zIndex: 20,
+    paddingHorizontal: 20, paddingTop: 0, paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    elevation: 12, zIndex: 20, maxHeight: '75%',
   },
-  panelDragIndicator: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginBottom: 12 },
+  bottomPanelExpanded: { maxHeight: '75%' },
+  panelDragArea: { paddingTop: 12, paddingBottom: 8, alignItems: 'center' },
+  panelDragIndicator: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
   panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   panelLabel: { fontSize: 12, fontWeight: '700', color: COLORS.secondary, textTransform: 'uppercase', letterSpacing: 1 },
+  expandBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, gap: 4 },
+  expandBtnText: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
   panelContent: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   gateIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   panelMiddle: { flex: 1, marginRight: 12 },
@@ -420,6 +495,26 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FDE68A',
   },
   recText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#92400E' },
+  nearbySection: { marginTop: 4, marginBottom: 10 },
+  nearbySectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.primary, marginBottom: 8 },
+  nearbyScroll: { maxHeight: 240 },
+  nearbyItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10,
+    borderRadius: 12, marginBottom: 4, backgroundColor: '#F9FAFB',
+  },
+  nearbyItemSelected: { backgroundColor: '#E8F5E9', borderWidth: 1, borderColor: COLORS.primary + '40' },
+  nearbyRank: {
+    width: 22, height: 22, borderRadius: 11, backgroundColor: '#E5E7EB',
+    alignItems: 'center', justifyContent: 'center', marginRight: 8,
+  },
+  nearbyRankText: { fontSize: 11, fontWeight: '800', color: COLORS.textSecondary },
+  nearbyDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  nearbyInfo: { flex: 1, marginRight: 8 },
+  nearbyName: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  nearbyMeta: { fontSize: 10, color: COLORS.textSecondary, marginTop: 1 },
+  nearbyRight: { alignItems: 'flex-end' },
+  nearbyDist: { fontSize: 15, fontWeight: '300' },
+  nearbyDir: { fontSize: 11, color: COLORS.textSecondary },
   routeButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, borderRadius: 24, paddingVertical: 14, gap: 8,
