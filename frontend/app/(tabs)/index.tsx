@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import { KAABA_LOCATION } from '../../src/data/haramData';
 import { formatDistance, bearing, bearingToArrow, haversineDistance } from '../../src/utils/location';
@@ -187,6 +188,7 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 }
 
 export default function MapScreen() {
+  const router = useRouter();
   const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -300,7 +302,10 @@ export default function MapScreen() {
 
       {/* FABs */}
       <View style={styles.fabContainer}>
-        <TouchableOpacity testID="btn-center-user" style={styles.fab} onPress={centerOnUser} activeOpacity={0.8}>
+        <TouchableOpacity testID="btn-indoor-nav" style={[styles.fab, { backgroundColor: '#6366F1' }]} onPress={() => router.push('/indoor')} activeOpacity={0.8}>
+          <Ionicons name="layers" size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity testID="btn-center-user" style={[styles.fab, { marginTop: 12 }]} onPress={centerOnUser} activeOpacity={0.8}>
           <Ionicons name="locate" size={22} color={COLORS.primary} />
         </TouchableOpacity>
         <TouchableOpacity testID="btn-center-kaaba" style={[styles.fab, { marginTop: 12 }]} onPress={centerOnKaaba} activeOpacity={0.8}>

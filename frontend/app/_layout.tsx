@@ -7,6 +7,7 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="indoor" options={{ headerShown: false, presentation: 'modal' }} />
       </Stack>
     </>
   );
