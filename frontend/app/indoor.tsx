@@ -14,33 +14,6 @@ const COLORS = {
   surface: '#FFFFFF', text: '#111827', textSecondary: '#4B5563', border: '#E5E7EB',
 };
 
-function MobileIndoorMap({ onMessage, injectRef }: { onMessage: (data: any) => void; injectRef: React.MutableRefObject<any> }) {
-  const WebView = require('react-native-webview').WebView;
-  const webViewRef = useRef<any>(null);
-
-  useEffect(() => {
-    injectRef.current = {
-      inject: (msg: object) => {
-        webViewRef.current?.injectJavaScript(`handle(${JSON.stringify(msg)});true;`);
-      },
-    };
-  }, [injectRef]);
-
-  return (
-    <WebView
-      ref={webViewRef}
-      source={{ html: getIndoorMapHtml() }}
-      style={{ flex: 1 }}
-      onMessage={(event: any) => {
-        try { onMessage(JSON.parse(event.nativeEvent.data)); } catch {}
-      }}
-      javaScriptEnabled
-      domStorageEnabled
-      scrollEnabled={false}
-    />
-  );
-}
-
 // Dijkstra pathfinding
 function findPath(startId: string, endId: string, pois: IndoorPOI[]): IndoorPOI[] {
   const poiMap = new Map(pois.map((p) => [p.id, p]));
@@ -49,7 +22,6 @@ function findPath(startId: string, endId: string, pois: IndoorPOI[]): IndoorPOI[
   const visited = new Set<string>();
   pois.forEach((p) => { dist.set(p.id, Infinity); prev.set(p.id, null); });
   dist.set(startId, 0);
-
   while (true) {
     let u: string | null = null;
     let minDist = Infinity;
@@ -71,7 +43,6 @@ function findPath(startId: string, endId: string, pois: IndoorPOI[]): IndoorPOI[
       }
     }
   }
-
   const path: IndoorPOI[] = [];
   let cur: string | null = endId;
   while (cur) {
@@ -82,8 +53,7 @@ function findPath(startId: string, endId: string, pois: IndoorPOI[]): IndoorPOI[
   return path.length > 1 && path[0].id === startId ? path : [];
 }
 
-function getIndoorMapHtml() {
-  return `<!DOCTYPE html>
+const MAP_HTML = `<!DOCTYPE html>
 <html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -95,7 +65,6 @@ function getIndoorMapHtml() {
 .kaaba-marker{background:#000;border:2px solid #C8A951;width:16px;height:16px;box-shadow:0 0 0 4px rgba(200,169,81,0.3)}
 .leaflet-popup-content{font-family:system-ui;font-size:13px}
 .leaflet-popup-content b{color:#1E3F20}
-.floor-badge{display:inline-block;padding:2px 6px;border-radius:6px;font-size:10px;color:#fff;font-weight:bold}
 </style>
 </head><body><div id="map"></div>
 <script>
@@ -103,46 +72,36 @@ var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([21.42
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:22,subdomains:'abcd'}).addTo(map);
 var kaabaIcon=L.divIcon({className:'',html:'<div class="kaaba-marker"></div>',iconSize:[20,20],iconAnchor:[10,10]});
 L.marker([21.4225,39.8262],{icon:kaabaIcon}).addTo(map).bindPopup('<b>The Holy Kaaba</b>');
-// Haram boundary polygon
 L.polygon([[21.4205,39.8238],[21.4205,39.8288],[21.4248,39.8288],[21.4248,39.8238]],{color:'#1E3F20',weight:2,fillColor:'#1E3F20',fillOpacity:0.05,dashArray:'6,4'}).addTo(map);
-// Mataf circle
 L.circle([21.4225,39.8262],{radius:45,color:'#C8A951',weight:2,fillColor:'#C8A951',fillOpacity:0.1}).addTo(map);
-
-var poiLayer=L.layerGroup().addTo(map);
-var pathLayer=L.layerGroup().addTo(map);
+var poiLayer=L.layerGroup().addTo(map);var pathLayer=L.layerGroup().addTo(map);
 var typeColors={gate:'#1E3F20',escalator:'#8B5CF6',elevator:'#3B82F6',stairs:'#6366F1',washroom:'#06B6D4',prayer_hall:'#C8A951',mataf:'#000',masaa:'#059669',zamzam:'#0EA5E9',entrance:'#EF4444'};
-
 function setPois(pois){
   poiLayer.clearLayers();
   pois.forEach(function(p){
     var c=typeColors[p.type]||'#999';
     var icon=L.divIcon({className:'',html:'<div class="poi-marker" style="background:'+c+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});
-    var floorNames={'-1':'Basement','0':'Ground','1':'First','2':'Roof'};
-    var popup='<b>'+p.name+'</b><br/><span style="color:#666">'+p.name_ar+'</span><br/><span class="floor-badge" style="background:'+c+'">'+p.type.replace('_',' ')+'</span>';
+    var popup='<b>'+p.name+'</b><br/><span style="color:#666">'+p.name_ar+'</span><br/><span style="display:inline-block;padding:2px 6px;border-radius:6px;font-size:10px;color:#fff;font-weight:bold;background:'+c+'">'+p.type.replace('_',' ')+'</span>';
     var m=L.marker([p.latitude,p.longitude],{icon:icon}).bindPopup(popup);
     m.on('click',function(){send({type:'poiSelect',poi:p})});
     poiLayer.addLayer(m);
-    // Label
     var label=L.marker([p.latitude,p.longitude],{icon:L.divIcon({className:'poi-label',html:p.name.length>20?p.name.substring(0,18)+'..':p.name,iconSize:[100,14],iconAnchor:[50,-8]}),interactive:false});
     poiLayer.addLayer(label);
   });
 }
-
 function showPath(coords){
-  pathLayer.clearLayers();
-  if(coords.length<2)return;
+  pathLayer.clearLayers();if(coords.length<2)return;
   var line=L.polyline(coords,{color:'#2563EB',weight:5,opacity:0.8}).addTo(pathLayer);
   coords.forEach(function(c,i){
     var col=i===0?'#22C55E':i===coords.length-1?'#EF4444':'#2563EB';
-    var icon=L.divIcon({className:'',html:'<div style="background:'+col+';border:2px solid #fff;border-radius:50%;width:'+(i===0||i===coords.length-1?'16':'8')+'px;height:'+(i===0||i===coords.length-1?'16':'8')+'px;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>',iconSize:[20,20],iconAnchor:[10,10]});
+    var sz=i===0||i===coords.length-1?'16':'8';
+    var icon=L.divIcon({className:'',html:'<div style="background:'+col+';border:2px solid #fff;border-radius:50%;width:'+sz+'px;height:'+sz+'px;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>',iconSize:[20,20],iconAnchor:[10,10]});
     L.marker(c,{icon:icon}).addTo(pathLayer);
   });
   map.fitBounds(line.getBounds(),{padding:[40,40]});
 }
-
 function clearPath(){pathLayer.clearLayers()}
 function centerOn(lat,lng,zoom){map.flyTo([lat,lng],zoom||18,{duration:0.5})}
-
 function handle(m){
   if(m.type==='pois')setPois(m.data);
   if(m.type==='path')showPath(m.coords);
@@ -150,20 +109,84 @@ function handle(m){
   if(m.type==='center')centerOn(m.lat,m.lng,m.zoom);
 }
 function send(msg){
-  try{window.parent.postMessage(JSON.stringify(msg),'*')}catch(e){}
-  try{if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(msg))}catch(e){}
+  var s=JSON.stringify(msg);
+  try{if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s)}catch(e){}
+  try{window.parent.postMessage(s,'*')}catch(e){}
 }
 window.addEventListener('message',function(e){try{var d=typeof e.data==='string'?JSON.parse(e.data):e.data;handle(d)}catch(x){}});
+document.addEventListener('message',function(e){try{var d=typeof e.data==='string'?JSON.parse(e.data):e.data;handle(d)}catch(x){}});
 send({type:'ready'});
 <\/script></body></html>`;
+
+// Web map component using iframe
+function WebIndoorMap({ onMessage, mapRef }: { onMessage: (data: any) => void; mapRef: React.MutableRefObject<any> }) {
+  const iframeRef = useRef<any>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const blob = new Blob([MAP_HTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    setBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data && data.type) onMessage(data);
+      } catch {}
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [onMessage]);
+
+  useEffect(() => {
+    mapRef.current = {
+      inject: (msg: object) => {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(JSON.stringify(msg), '*');
+        }
+      },
+    };
+  }, [mapRef]);
+
+  if (!blobUrl) return null;
+  return <iframe ref={iframeRef} src={blobUrl} style={{ width: '100%', height: '100%', border: 'none' } as any} />;
+}
+
+// Mobile map component using WebView
+function MobileIndoorMap({ onMessage, mapRef }: { onMessage: (data: any) => void; mapRef: React.MutableRefObject<any> }) {
+  const WebView = require('react-native-webview').WebView;
+  const webViewRef = useRef<any>(null);
+
+  useEffect(() => {
+    mapRef.current = {
+      inject: (msg: object) => {
+        webViewRef.current?.injectJavaScript(`handle(${JSON.stringify(msg)});true;`);
+      },
+    };
+  }, [mapRef]);
+
+  return (
+    <WebView
+      ref={webViewRef}
+      source={{ html: MAP_HTML }}
+      style={{ flex: 1 }}
+      onMessage={(event: any) => {
+        try { onMessage(JSON.parse(event.nativeEvent.data)); } catch {}
+      }}
+      javaScriptEnabled
+      domStorageEnabled
+      scrollEnabled={false}
+    />
+  );
 }
 
 export default function IndoorScreen() {
   const router = useRouter();
   const { userLocation } = useApp();
   const mapRef = useRef<any>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const mobileInjectRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState(0);
   const [navStart, setNavStart] = useState<IndoorPOI | null>(null);
@@ -175,39 +198,22 @@ export default function IndoorScreen() {
   const floorPois = useMemo(() => INDOOR_POIS.filter((p) => p.floor === selectedFloor), [selectedFloor]);
 
   const inject = useCallback((msg: object) => {
-    if (Platform.OS === 'web' && iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(JSON.stringify(msg), '*');
-    } else if (Platform.OS !== 'web' && mobileInjectRef.current) {
-      mobileInjectRef.current.inject(msg);
+    mapRef.current?.inject(msg);
+  }, []);
+
+  const handleMessage = useCallback((data: any) => {
+    if (data.type === 'ready') setMapReady(true);
+    if (data.type === 'poiSelect') {
+      // Will be handled by selectingFor state
     }
   }, []);
 
-  // Setup iframe and messages
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const html = getIndoorMapHtml();
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      setBlobUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handler = (e: MessageEvent) => {
-        try {
-          const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-          if (data?.type === 'ready') setMapReady(true);
-          if (data?.type === 'poiSelect') {
-            if (selectingFor === 'start') { setNavStart(data.poi); setSelectingFor(null); }
-            else if (selectingFor === 'end') { setNavEnd(data.poi); setSelectingFor(null); }
-          }
-        } catch {}
-      };
-      window.addEventListener('message', handler);
-      return () => window.removeEventListener('message', handler);
+  // Handle POI selection from map taps
+  const handleMapMessage = useCallback((data: any) => {
+    if (data.type === 'ready') setMapReady(true);
+    if (data.type === 'poiSelect' && data.poi) {
+      if (selectingFor === 'start') { setNavStart(data.poi); setSelectingFor(null); }
+      else if (selectingFor === 'end') { setNavEnd(data.poi); setSelectingFor(null); }
     }
   }, [selectingFor]);
 
@@ -223,8 +229,7 @@ export default function IndoorScreen() {
     const result = findPath(navStart.id, navEnd.id, INDOOR_POIS);
     setPath(result);
     if (result.length > 0) {
-      const coords = result.map((p) => [p.latitude, p.longitude]);
-      inject({ type: 'path', coords });
+      inject({ type: 'path', coords: result.map((p) => [p.latitude, p.longitude]) });
     }
   }, [navStart, navEnd, inject]);
 
@@ -250,36 +255,26 @@ export default function IndoorScreen() {
   };
 
   const navigateToMataf = () => {
-    // Find nearest gate as start, mataf as end
     const gates = INDOOR_POIS.filter((p) => p.type === 'gate' && p.floor === 0);
     const mataf = INDOOR_POIS.find((p) => p.id === 'g_mataf');
     if (gates.length > 0 && mataf) {
       const userLat = userLocation?.latitude || 21.4225;
       const userLng = userLocation?.longitude || 39.8262;
-      let nearest = gates[0];
-      let minDist = Infinity;
-      for (const g of gates) {
-        const d = haversineDistance(userLat, userLng, g.latitude, g.longitude);
-        if (d < minDist) { minDist = d; nearest = g; }
-      }
-      setNavStart(nearest);
-      setNavEnd(mataf);
-      setSelectedFloor(0);
+      let nearest = gates[0]; let minDist = Infinity;
+      for (const g of gates) { const d = haversineDistance(userLat, userLng, g.latitude, g.longitude); if (d < minDist) { minDist = d; nearest = g; } }
+      setNavStart(nearest); setNavEnd(mataf); setSelectedFloor(0);
     }
   };
 
   const selectPoi = (poi: IndoorPOI) => {
     if (selectingFor === 'start') setNavStart(poi);
     else if (selectingFor === 'end') setNavEnd(poi);
-    setSelectingFor(null);
-    setShowPoiList(false);
-    setSelectedFloor(poi.floor);
+    setSelectingFor(null); setShowPoiList(false); setSelectedFloor(poi.floor);
     setTimeout(() => inject({ type: 'center', lat: poi.latitude, lng: poi.longitude, zoom: 19 }), 300);
   };
 
   return (
     <View style={styles.container} testID="indoor-screen">
-      {/* Header */}
       <SafeAreaView edges={['top']} style={styles.header}>
         <TouchableOpacity testID="btn-back" onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
@@ -288,44 +283,27 @@ export default function IndoorScreen() {
         <View style={{ width: 40 }} />
       </SafeAreaView>
 
-      {/* Floor Selector */}
       <View style={styles.floorSelector}>
         {FLOORS.map((f) => (
-          <TouchableOpacity
-            key={f.level}
-            testID={`floor-btn-${f.level}`}
+          <TouchableOpacity key={f.level} testID={`floor-btn-${f.level}`}
             style={[styles.floorBtn, selectedFloor === f.level && { backgroundColor: FLOOR_COLORS[f.level] }]}
-            onPress={() => setSelectedFloor(f.level)}
-          >
+            onPress={() => setSelectedFloor(f.level)}>
             <Text style={[styles.floorBtnText, selectedFloor === f.level && { color: '#fff' }]}>
               {f.level === -1 ? 'B' : f.level === 0 ? 'G' : f.level === 1 ? '1' : 'R'}
             </Text>
-            <Text style={[styles.floorBtnLabel, selectedFloor === f.level && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>
-              {f.name}
-            </Text>
+            <Text style={[styles.floorBtnLabel, selectedFloor === f.level && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{f.name}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Map */}
       <View style={styles.mapContainer}>
-        {Platform.OS === 'web' && blobUrl ? (
-          <iframe ref={iframeRef} src={blobUrl} style={{ width: '100%', height: '100%', border: 'none' } as any} />
-        ) : Platform.OS !== 'web' ? (
-          <MobileIndoorMap
-            onMessage={(data: any) => {
-              if (data?.type === 'ready') setMapReady(true);
-              if (data?.type === 'poiSelect') {
-                if (selectingFor === 'start') { setNavStart(data.poi); setSelectingFor(null); }
-                else if (selectingFor === 'end') { setNavEnd(data.poi); setSelectingFor(null); }
-              }
-            }}
-            injectRef={mobileInjectRef}
-          />
-        ) : null}
+        {Platform.OS === 'web' ? (
+          <WebIndoorMap onMessage={handleMapMessage} mapRef={mapRef} />
+        ) : (
+          <MobileIndoorMap onMessage={handleMapMessage} mapRef={mapRef} />
+        )}
       </View>
 
-      {/* Quick Find Buttons */}
       <View style={styles.quickFind}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFindScroll}>
           {[
@@ -335,12 +313,7 @@ export default function IndoorScreen() {
             { type: 'stairs', label: 'Stairs', icon: 'layers' },
             { type: 'zamzam', label: 'Zamzam', icon: 'cafe' },
           ].map((item) => (
-            <TouchableOpacity
-              key={item.type}
-              testID={`find-nearest-${item.type}`}
-              style={styles.quickFindBtn}
-              onPress={() => findNearest(item.type)}
-            >
+            <TouchableOpacity key={item.type} testID={`find-nearest-${item.type}`} style={styles.quickFindBtn} onPress={() => findNearest(item.type)}>
               <Ionicons name={item.icon as any} size={16} color={COLORS.primary} />
               <Text style={styles.quickFindText}>{item.label}</Text>
             </TouchableOpacity>
@@ -352,23 +325,14 @@ export default function IndoorScreen() {
         </ScrollView>
       </View>
 
-      {/* Navigation Panel */}
       <View style={styles.navPanel}>
         <Text style={styles.navTitle}>Navigate</Text>
         <View style={styles.navRow}>
-          <TouchableOpacity
-            testID="btn-select-start"
-            style={[styles.navInput, selectingFor === 'start' && styles.navInputActive]}
-            onPress={() => { setSelectingFor('start'); setShowPoiList(true); }}
-          >
+          <TouchableOpacity testID="btn-select-start" style={[styles.navInput, selectingFor === 'start' && styles.navInputActive]} onPress={() => { setSelectingFor('start'); setShowPoiList(true); }}>
             <View style={[styles.navDot, { backgroundColor: '#22C55E' }]} />
             <Text style={styles.navInputText} numberOfLines={1}>{navStart ? navStart.name : 'Select start point'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            testID="btn-select-end"
-            style={[styles.navInput, selectingFor === 'end' && styles.navInputActive]}
-            onPress={() => { setSelectingFor('end'); setShowPoiList(true); }}
-          >
+          <TouchableOpacity testID="btn-select-end" style={[styles.navInput, selectingFor === 'end' && styles.navInputActive]} onPress={() => { setSelectingFor('end'); setShowPoiList(true); }}>
             <View style={[styles.navDot, { backgroundColor: '#EF4444' }]} />
             <Text style={styles.navInputText} numberOfLines={1}>{navEnd ? navEnd.name : 'Select destination'}</Text>
           </TouchableOpacity>
@@ -382,13 +346,12 @@ export default function IndoorScreen() {
           <View style={styles.pathInfo}>
             <Ionicons name="footsteps" size={14} color={COLORS.primary} />
             <Text style={styles.pathInfoText}>
-              {path.length} steps • Floors: {[...new Set(path.map((p) => p.floor))].map((f) => f === -1 ? 'B' : f === 0 ? 'G' : f === 1 ? '1' : 'R').join(' → ')}
+              {path.length} steps {'\u2022'} Floors: {[...new Set(path.map((p) => p.floor))].map((f) => f === -1 ? 'B' : f === 0 ? 'G' : f === 1 ? '1' : 'R').join(' \u2192 ')}
             </Text>
           </View>
         )}
       </View>
 
-      {/* POI List Modal */}
       {showPoiList && (
         <View style={styles.poiListOverlay}>
           <View style={styles.poiListContainer}>
@@ -398,30 +361,21 @@ export default function IndoorScreen() {
                 <Ionicons name="close-circle" size={24} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={INDOOR_POIS}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const poiIcon = POI_ICONS[item.type] || { icon: 'location', color: '#999' };
-                const floorLabel = item.floor === -1 ? 'Basement' : item.floor === 0 ? 'Ground' : item.floor === 1 ? 'First' : 'Roof';
-                return (
-                  <TouchableOpacity
-                    style={styles.poiListItem}
-                    onPress={() => selectPoi(item)}
-                    testID={`poi-select-${item.id}`}
-                  >
-                    <View style={[styles.poiListIcon, { backgroundColor: poiIcon.color }]}>
-                      <Ionicons name={poiIcon.icon as any} size={14} color="#fff" />
-                    </View>
-                    <View style={styles.poiListInfo}>
-                      <Text style={styles.poiListName} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.poiListMeta}>{item.type.replace('_', ' ')} • {floorLabel}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              showsVerticalScrollIndicator={false}
-            />
+            <FlatList data={INDOOR_POIS} keyExtractor={(item) => item.id} renderItem={({ item }) => {
+              const poiIcon = POI_ICONS[item.type] || { icon: 'location', color: '#999' };
+              const floorLabel = item.floor === -1 ? 'Basement' : item.floor === 0 ? 'Ground' : item.floor === 1 ? 'First' : 'Roof';
+              return (
+                <TouchableOpacity style={styles.poiListItem} onPress={() => selectPoi(item)} testID={`poi-select-${item.id}`}>
+                  <View style={[styles.poiListIcon, { backgroundColor: poiIcon.color }]}>
+                    <Ionicons name={poiIcon.icon as any} size={14} color="#fff" />
+                  </View>
+                  <View style={styles.poiListInfo}>
+                    <Text style={styles.poiListName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.poiListMeta}>{item.type.replace('_', ' ')} {'\u2022'} {floorLabel}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }} showsVerticalScrollIndicator={false} />
           </View>
         </View>
       )}
@@ -439,8 +393,6 @@ const styles = StyleSheet.create({
   floorBtnText: { fontSize: 16, fontWeight: '800', color: COLORS.textSecondary },
   floorBtnLabel: { fontSize: 9, fontWeight: '600', color: COLORS.textSecondary, marginTop: 2 },
   mapContainer: { flex: 1 },
-  mapPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' },
-  mapPlaceholderText: { color: COLORS.textSecondary },
   quickFind: { backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
   quickFindScroll: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   quickFindBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, gap: 4 },
