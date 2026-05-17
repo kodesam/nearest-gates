@@ -14,6 +14,33 @@ const COLORS = {
   surface: '#FFFFFF', text: '#111827', textSecondary: '#4B5563', border: '#E5E7EB',
 };
 
+function MobileIndoorMap({ onMessage, injectRef }: { onMessage: (data: any) => void; injectRef: React.MutableRefObject<any> }) {
+  const WebView = require('react-native-webview').WebView;
+  const webViewRef = useRef<any>(null);
+
+  useEffect(() => {
+    injectRef.current = {
+      inject: (msg: object) => {
+        webViewRef.current?.injectJavaScript(`handle(${JSON.stringify(msg)});true;`);
+      },
+    };
+  }, [injectRef]);
+
+  return (
+    <WebView
+      ref={webViewRef}
+      source={{ html: getIndoorMapHtml() }}
+      style={{ flex: 1 }}
+      onMessage={(event: any) => {
+        try { onMessage(JSON.parse(event.nativeEvent.data)); } catch {}
+      }}
+      javaScriptEnabled
+      domStorageEnabled
+      scrollEnabled={false}
+    />
+  );
+}
+
 // Dijkstra pathfinding
 function findPath(startId: string, endId: string, pois: IndoorPOI[]): IndoorPOI[] {
   const poiMap = new Map(pois.map((p) => [p.id, p]));
@@ -136,6 +163,7 @@ export default function IndoorScreen() {
   const { userLocation } = useApp();
   const mapRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const mobileInjectRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState(0);
   const [navStart, setNavStart] = useState<IndoorPOI | null>(null);
@@ -149,6 +177,8 @@ export default function IndoorScreen() {
   const inject = useCallback((msg: object) => {
     if (Platform.OS === 'web' && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(JSON.stringify(msg), '*');
+    } else if (Platform.OS !== 'web' && mobileInjectRef.current) {
+      mobileInjectRef.current.inject(msg);
     }
   }, []);
 
@@ -281,9 +311,18 @@ export default function IndoorScreen() {
       <View style={styles.mapContainer}>
         {Platform.OS === 'web' && blobUrl ? (
           <iframe ref={iframeRef} src={blobUrl} style={{ width: '100%', height: '100%', border: 'none' } as any} />
-        ) : (
-          <View style={styles.mapPlaceholder}><Text style={styles.mapPlaceholderText}>Indoor map</Text></View>
-        )}
+        ) : Platform.OS !== 'web' ? (
+          <MobileIndoorMap
+            onMessage={(data: any) => {
+              if (data?.type === 'ready') setMapReady(true);
+              if (data?.type === 'poiSelect') {
+                if (selectingFor === 'start') { setNavStart(data.poi); setSelectingFor(null); }
+                else if (selectingFor === 'end') { setNavEnd(data.poi); setSelectingFor(null); }
+              }
+            }}
+            injectRef={mobileInjectRef}
+          />
+        ) : null}
       </View>
 
       {/* Quick Find Buttons */}
