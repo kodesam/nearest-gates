@@ -1,21 +1,24 @@
 {
   "expo": {
     "name": "Haram Navigator",
-    "slug": "frontend",
+    "slug": "haram-navigator",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "haram-navigator",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.haramnavigator",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Find nearest Haram gates from your location",
         "NSLocationAlwaysUsageDescription": "Navigate to Haram gates while walking"
       }
     },
     "android": {
+      "package": "com.yourname.haramnavigator",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1E3F20"
@@ -23,7 +26,10 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
@@ -45,13 +51,20 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Find nearest Haram gates from your location"
+          "locationWhenInUsePermission": "Find nearest Haram gates from your location",
+          "locationAlwaysAndWhenInUsePermission": "Navigate to Haram gates while walking",
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
     }
   }
 }
