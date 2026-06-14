@@ -108,10 +108,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initLocation();
     loadCachedData();
-    fetchFromAPI();
-    fetchDensityData();
-    // Poll density every 30 seconds
-    densityIntervalRef.current = setInterval(fetchDensityData, 30000);
+    // Initial connectivity check + data fetch
+    checkConnectivity().then((online) => {
+      if (online) {
+        fetchFromAPI();
+        fetchDensityData();
+      }
+    });
+    // Poll density + connectivity every 30 seconds
+    densityIntervalRef.current = setInterval(async () => {
+      await fetchDensityData();
+    }, 30000);
     // Failsafe: stop loading after 5 seconds regardless
     const timeout = setTimeout(() => setIsLoading(false), 5000);
     return () => {
@@ -182,10 +189,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const fetchFromAPI = async () => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       const [gatesRes, amenitiesRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/gates`),
-        fetch(`${BACKEND_URL}/api/amenities`),
+        fetch(`${BACKEND_URL}/api/gates`, { signal: controller.signal }),
+        fetch(`${BACKEND_URL}/api/amenities`, { signal: controller.signal }),
       ]);
+      clearTimeout(timeoutId);
       if (gatesRes.ok && amenitiesRes.ok) {
         const gatesData = await gatesRes.json();
         const amenitiesData = await amenitiesRes.json();
@@ -197,24 +207,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem(CACHE_KEY_GATES, JSON.stringify(gatesData));
         await AsyncStorage.setItem(CACHE_KEY_AMENITIES, JSON.stringify(amenitiesData));
         await AsyncStorage.setItem(CACHE_KEY_LAST_SYNC, now);
+      } else {
+        setIsOnline(false);
       }
     } catch {
       setIsOnline(false);
     }
   };
 
+  const checkConnectivity = async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${BACKEND_URL}/api/`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        setIsOnline(true);
+        return true;
+      }
+    } catch {}
+    setIsOnline(false);
+    return false;
+  };
+
   const fetchDensityData = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gates/density`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${BACKEND_URL}/api/gates/density`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
         const map: Record<string, DensityInfo> = {};
         data.density.forEach((d: DensityInfo) => { map[d.gate_id] = d; });
         setDensityMap(map);
         setIsOnline(true);
+      } else {
+        setIsOnline(false);
       }
     } catch {
-      // Offline - density data unavailable
+      // Check connectivity separately - maybe just density endpoint failed
+      await checkConnectivity();
     }
   };
 
@@ -251,8 +284,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const syncData = useCallback(async () => {
     setIsLoading(true);
-    await fetchFromAPI();
-    await fetchDensityData();
+    const online = await checkConnectivity();
+    if (online) {
+      await fetchFromAPI();
+      await fetchDensityData();
+    }
     setIsLoading(false);
   }, []);
 
