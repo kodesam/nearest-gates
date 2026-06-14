@@ -23,12 +23,8 @@
     "expo": "~54.0.35",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
-<<<<<<< HEAD
     "expo-dev-client": "~6.0.21",
-    "expo-font": "~14.0.11",
-=======
     "expo-font": "~14.0.12",
->>>>>>> 719dce047056870a118e1908f358cd7ae07be77c
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-linking": "~8.0.12",
