@@ -10,14 +10,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourname.haramnavigator",
+      "bundleIdentifier": "com.kodesam.haramnavigator",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Find nearest Haram gates from your location",
         "NSLocationAlwaysUsageDescription": "Navigate to Haram gates while walking"
       }
     },
     "android": {
-      "package": "com.yourname.haramnavigator",
+      "package": "com.kodesam.haramnavigator",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -58,7 +58,8 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
