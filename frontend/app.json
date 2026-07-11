@@ -1,26 +1,27 @@
 {
   "expo": {
-    "name": "Haram Navigator",
+    "name": "daleel alharam",
     "slug": "haram-navigator",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/favicon.png",
     "scheme": "haram-navigator",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kodesam.haramnavigator",
+      "bundleIdentifier": "com.daleel.alharam",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Find nearest Haram gates from your location",
         "NSLocationAlwaysUsageDescription": "Navigate to Haram gates while walking"
       }
     },
     "android": {
-      "package": "com.kodesam.haramnavigator",
+      "package": "com.daleel.alharam",
       "versionCode": 1,
+      "minSdkVersion": 21,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/favicon.png",
         "backgroundColor": "#1E3F20"
       },
       "edgeToEdgeEnabled": true,
@@ -44,7 +45,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-image.png",
+          "image": "./assets/images/favicon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#1E3F20"

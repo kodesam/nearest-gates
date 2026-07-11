@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GateData, AmenityData, FALLBACK_GATES, FALLBACK_AMENITIES } from '../data/haramData';
 import { haversineDistance } from '../utils/location';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://haram-locator.preview.emergentagent.com';
 const CACHE_KEY_GATES = '@haram_gates';
 const CACHE_KEY_AMENITIES = '@haram_amenities';
 const CACHE_KEY_LAST_SYNC = '@haram_last_sync';
@@ -58,6 +58,7 @@ interface AppContextType {
   lastSynced: string | null;
   syncData: () => Promise<void>;
   retryLocation: () => Promise<void>;
+  setAmenitiesData: (amenities: AmenityData[]) => void;
   nearestGate: (GateData & { distance: number }) | null;
   gatesWithDistance: (GateData & { distance: number })[];
   amenitiesWithDistance: (AmenityData & { distance: number })[];
@@ -77,6 +78,7 @@ const AppContext = createContext<AppContextType>({
   lastSynced: null,
   syncData: async () => {},
   retryLocation: async () => {},
+  setAmenitiesData: () => {},
   nearestGate: null,
   gatesWithDistance: [],
   amenitiesWithDistance: [],
@@ -292,6 +294,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const setAmenitiesData = useCallback((nextAmenities: AmenityData[]) => {
+    setAmenities(nextAmenities);
+    AsyncStorage.setItem(CACHE_KEY_AMENITIES, JSON.stringify(nextAmenities)).catch(() => {});
+  }, []);
+
   const retryLocation = useCallback(async () => {
     setLocationError(null);
     setIsLoading(true);
@@ -371,6 +378,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastSynced,
         syncData,
         retryLocation,
+        setAmenitiesData,
         nearestGate,
         gatesWithDistance,
         amenitiesWithDistance,

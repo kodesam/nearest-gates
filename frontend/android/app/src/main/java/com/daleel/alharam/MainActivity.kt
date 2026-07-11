@@ -1,4 +1,4 @@
-package com.yourname.haramnavigator
+package com.daleel.alharam
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://haram-locator.preview.emergentagent.com';
 
 const COLORS = {
   primary: '#1E3F20',
@@ -24,7 +24,7 @@ const COLORS = {
 };
 
 export default function SettingsScreen() {
-  const { isOnline, lastSynced, syncData, isLoading, gates, amenities } = useApp();
+  const { isOnline, lastSynced, syncData, isLoading, gates, amenities, setAmenitiesData } = useApp();
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [refreshingOSM, setRefreshingOSM] = useState(false);
@@ -72,16 +72,66 @@ export default function SettingsScreen() {
   const handleRefreshOSM = async () => {
     setRefreshingOSM(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/amenities/refresh`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
+      let res = await fetch(`${BACKEND_URL}/api/amenities/refresh`, { method: 'POST' });
+      let contentType = res.headers.get('content-type') || '';
+      let rawText = await res.text();
+      let data: any = {};
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(rawText || '{}');
+      }
+
+      if (!res.ok || data.status !== 'ok') {
+        // Retry once with a direct Overpass fallback if the server endpoint is unavailable.
+        const fallbackRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=[out:json][timeout:30];(node["amenity"~"restaurant|fast_food|cafe"](around:1000,21.4225,39.8262);node["shop"~"supermarket|convenience|mall"](around:1000,21.4225,39.8262);node["highway"="bus_stop"](around:1000,21.4225,39.8262);node["amenity"="taxi"](around:1000,21.4225,39.8262););out body 20;'
+        });
+
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          const amenities = (fallbackData.elements || [])
+            .filter((el: any) => el.lat && el.lon)
+            .map((el: any, index: number) => {
+              const tags = el.tags || {};
+              const name = tags['name:en'] || tags.name || `Location ${index + 1}`;
+              const amenityTag = tags.amenity || '';
+              const shopTag = tags.shop || '';
+              const highwayTag = tags.highway || '';
+              let category = 'restaurant';
+              if (shopTag) category = 'grocery';
+              else if (highwayTag === 'bus_stop') category = 'bus_stop';
+              else if (amenityTag === 'taxi') category = 'taxi_stand';
+              return {
+                id: `osm-${el.id}`,
+                name,
+                category,
+                latitude: el.lat,
+                longitude: el.lon,
+                description: tags['name:ar'] || tags.amenity || tags.shop || 'OpenStreetMap location',
+              };
+            })
+            .slice(0, 12);
+
+          if (amenities.length > 0) {
+            setAmenitiesData(amenities);
+            Alert.alert('Updated', `Loaded ${amenities.length} amenities from OpenStreetMap`);
+            await syncData();
+            setRefreshingOSM(false);
+            return;
+          }
+        }
+      }
+
+      if (res.ok && data.status === 'ok') {
         Alert.alert('Updated', `Loaded ${data.count} real amenities from OpenStreetMap`);
         await syncData();
       } else {
-        Alert.alert('Error', data.message || 'Could not refresh amenities');
+        const fallbackMessage = 'Using built-in amenity data because the server refresh endpoint is unavailable.';
+        Alert.alert('Refresh unavailable', data.message || fallbackMessage);
       }
-    } catch {
-      Alert.alert('Error', 'Could not connect to server');
+    } catch (error) {
+      Alert.alert('Refresh unavailable', 'Using built-in amenity data because the server refresh endpoint is unavailable.');
     }
     setRefreshingOSM(false);
   };

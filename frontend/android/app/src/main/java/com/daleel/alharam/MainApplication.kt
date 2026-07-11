@@ -1,4 +1,4 @@
-package com.yourname.haramnavigator
+package com.daleel.alharam
 
 import android.app.Application
 import android.content.res.Configuration
