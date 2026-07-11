@@ -1,4 +1,4 @@
-package com.daleel.alharam
+package com.daleel.alharam.nav
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

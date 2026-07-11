@@ -10,14 +10,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daleel.alharam",
+      "bundleIdentifier": "com.daleel.alharam.nav",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Find nearest Haram gates from your location",
         "NSLocationAlwaysUsageDescription": "Navigate to Haram gates while walking"
       }
     },
     "android": {
-      "package": "com.daleel.alharam",
+      "package": "com.daleel.alharam.nav",
       "versionCode": 1,
       "minSdkVersion": 21,
       "adaptiveIcon": {

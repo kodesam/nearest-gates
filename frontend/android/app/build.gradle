@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.daleel.alharam'
+    namespace 'com.daleel.alharam.nav'
     defaultConfig {
-        applicationId 'com.daleel.alharam'
+        applicationId 'com.daleel.alharam.nav'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
