@@ -7,8 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://haram-locator.preview.emergentagent.com';
+import { buildApiUrl, buildPathUrl } from '../../src/utils/backend';
 
 const COLORS = {
   primary: '#1E3F20',
@@ -39,7 +38,7 @@ export default function SettingsScreen() {
 
   const loadDataSourceConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/config/datasource`);
+      const res = await fetch(buildApiUrl('/config/datasource'));
       if (res.ok) {
         const data = await res.json();
         setDataMode(data.mode || 'simulation');
@@ -52,7 +51,7 @@ export default function SettingsScreen() {
   const saveDataSourceConfig = async () => {
     setSavingConfig(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/config/datasource`, {
+      const res = await fetch(buildApiUrl('/config/datasource'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -72,12 +71,33 @@ export default function SettingsScreen() {
   const handleRefreshOSM = async () => {
     setRefreshingOSM(true);
     try {
-      let res = await fetch(`${BACKEND_URL}/api/amenities/refresh`, { method: 'POST' });
-      let contentType = res.headers.get('content-type') || '';
-      let rawText = await res.text();
+      const refreshCandidates = [
+        buildApiUrl('/amenities/refresh'),
+        buildPathUrl('/amenities/refresh'),
+      ];
+
+      let res: Response | null = null;
       let data: any = {};
-      if (contentType.includes('application/json')) {
-        data = JSON.parse(rawText || '{}');
+      for (const url of refreshCandidates) {
+        try {
+          const candidateRes = await fetch(url, { method: 'POST' });
+          const contentType = candidateRes.headers.get('content-type') || '';
+          const rawText = await candidateRes.text();
+          const parsed = contentType.includes('application/json') ? JSON.parse(rawText || '{}') : {};
+
+          res = candidateRes;
+          data = parsed;
+
+          if (candidateRes.ok) {
+            break;
+          }
+        } catch {
+          // Try next candidate endpoint.
+        }
+      }
+
+      if (!res) {
+        throw new Error('No refresh endpoint reachable');
       }
 
       if (!res.ok || data.status !== 'ok') {

@@ -3,8 +3,8 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GateData, AmenityData, FALLBACK_GATES, FALLBACK_AMENITIES } from '../data/haramData';
 import { haversineDistance } from '../utils/location';
+import { buildApiUrl } from '../utils/backend';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://haram-locator.preview.emergentagent.com';
 const CACHE_KEY_GATES = '@haram_gates';
 const CACHE_KEY_AMENITIES = '@haram_amenities';
 const CACHE_KEY_LAST_SYNC = '@haram_last_sync';
@@ -194,8 +194,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       const [gatesRes, amenitiesRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/gates`, { signal: controller.signal }),
-        fetch(`${BACKEND_URL}/api/amenities`, { signal: controller.signal }),
+        fetch(buildApiUrl('/gates'), { signal: controller.signal }),
+        fetch(buildApiUrl('/amenities'), { signal: controller.signal }),
       ]);
       clearTimeout(timeoutId);
       if (gatesRes.ok && amenitiesRes.ok) {
@@ -221,7 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${BACKEND_URL}/api/`, { signal: controller.signal });
+      const res = await fetch(buildApiUrl('/'), { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) {
         setIsOnline(true);
@@ -236,7 +236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(`${BACKEND_URL}/api/gates/density`, { signal: controller.signal });
+      const res = await fetch(buildApiUrl('/gates/density'), { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
@@ -257,7 +257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userLocation) return;
     try {
       const res = await fetch(
-        `${BACKEND_URL}/api/gates/recommend?lat=${userLocation.latitude}&lng=${userLocation.longitude}`
+        `${buildApiUrl('/gates/recommend')}?lat=${userLocation.latitude}&lng=${userLocation.longitude}`
       );
       if (res.ok) {
         const data = await res.json();
