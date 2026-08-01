@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "daleel alharam",
+    "name": "The Alharam Navigator",
     "slug": "haram-navigator",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,14 +10,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daleel.alharam.nav",
+      "bundleIdentifier": "com.alharam.nav",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Find nearest Haram gates from your location",
         "NSLocationAlwaysUsageDescription": "Navigate to Haram gates while walking"
       }
     },
     "android": {
-      "package": "com.daleel.alharam.nav",
+      "package": "com.alharam.nav",
       "versionCode": 1,
       "minSdkVersion": 21,
       "adaptiveIcon": {
