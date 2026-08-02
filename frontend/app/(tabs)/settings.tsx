@@ -71,8 +71,60 @@ export default function SettingsScreen() {
   const handleRefreshOSM = async () => {
     setRefreshingOSM(true);
     try {
+      const overpassQuery = '[out:json][timeout:30];(node["amenity"~"restaurant|fast_food|cafe"](around:1000,21.4225,39.8262);node["shop"~"supermarket|convenience|mall"](around:1000,21.4225,39.8262);node["highway"="bus_stop"](around:1000,21.4225,39.8262);node["amenity"="taxi"](around:1000,21.4225,39.8262););out body 20;';
+
+      const mapOverpassToAmenities = (elements: any[] = []) => {
+        return elements
+          .filter((el: any) => el.lat && el.lon)
+          .map((el: any, index: number) => {
+            const tags = el.tags || {};
+            const name = tags['name:en'] || tags.name || `Location ${index + 1}`;
+            const amenityTag = tags.amenity || '';
+            const shopTag = tags.shop || '';
+            const highwayTag = tags.highway || '';
+            let category = 'restaurant';
+            if (shopTag) category = 'grocery';
+            else if (highwayTag === 'bus_stop') category = 'bus_stop';
+            else if (amenityTag === 'taxi') category = 'taxi_stand';
+            return {
+              id: `osm-${el.id}`,
+              name,
+              category,
+              latitude: el.lat,
+              longitude: el.lon,
+              description: tags['name:ar'] || tags.amenity || tags.shop || 'OpenStreetMap location',
+            };
+          })
+          .slice(0, 12);
+      };
+
+      // Prefer direct OpenStreetMap refresh so this works even when backend refresh route is unavailable.
+      try {
+        const body = new URLSearchParams({ data: overpassQuery }).toString();
+        const directRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          const amenities = mapOverpassToAmenities(directData.elements || []);
+          if (amenities.length > 0) {
+            setAmenitiesData(amenities);
+            Alert.alert('Updated', `Loaded ${amenities.length} amenities from OpenStreetMap`);
+            await syncData();
+            setRefreshingOSM(false);
+            return;
+          }
+        }
+      } catch {
+        // Continue with backend refresh fallback below.
+      }
+
       const refreshCandidates = [
         buildApiUrl('/amenities/refresh'),
+        buildApiUrl('/amenities/refresh/'),
+        buildPathUrl('/api/amenities/refresh'),
         buildPathUrl('/amenities/refresh'),
       ];
 
@@ -83,12 +135,19 @@ export default function SettingsScreen() {
           const candidateRes = await fetch(url, { method: 'POST' });
           const contentType = candidateRes.headers.get('content-type') || '';
           const rawText = await candidateRes.text();
-          const parsed = contentType.includes('application/json') ? JSON.parse(rawText || '{}') : {};
+          let parsed = {};
+          if (contentType.includes('application/json')) {
+            try {
+              parsed = JSON.parse(rawText || '{}');
+            } catch {
+              parsed = {};
+            }
+          }
 
           res = candidateRes;
           data = parsed;
 
-          if (candidateRes.ok) {
+          if (candidateRes.ok && (!(parsed as any).status || (parsed as any).status === 'ok')) {
             break;
           }
         } catch {
@@ -100,51 +159,9 @@ export default function SettingsScreen() {
         throw new Error('No refresh endpoint reachable');
       }
 
-      if (!res.ok || data.status !== 'ok') {
-        // Retry once with a direct Overpass fallback if the server endpoint is unavailable.
-        const fallbackRes = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=[out:json][timeout:30];(node["amenity"~"restaurant|fast_food|cafe"](around:1000,21.4225,39.8262);node["shop"~"supermarket|convenience|mall"](around:1000,21.4225,39.8262);node["highway"="bus_stop"](around:1000,21.4225,39.8262);node["amenity"="taxi"](around:1000,21.4225,39.8262););out body 20;'
-        });
-
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          const amenities = (fallbackData.elements || [])
-            .filter((el: any) => el.lat && el.lon)
-            .map((el: any, index: number) => {
-              const tags = el.tags || {};
-              const name = tags['name:en'] || tags.name || `Location ${index + 1}`;
-              const amenityTag = tags.amenity || '';
-              const shopTag = tags.shop || '';
-              const highwayTag = tags.highway || '';
-              let category = 'restaurant';
-              if (shopTag) category = 'grocery';
-              else if (highwayTag === 'bus_stop') category = 'bus_stop';
-              else if (amenityTag === 'taxi') category = 'taxi_stand';
-              return {
-                id: `osm-${el.id}`,
-                name,
-                category,
-                latitude: el.lat,
-                longitude: el.lon,
-                description: tags['name:ar'] || tags.amenity || tags.shop || 'OpenStreetMap location',
-              };
-            })
-            .slice(0, 12);
-
-          if (amenities.length > 0) {
-            setAmenitiesData(amenities);
-            Alert.alert('Updated', `Loaded ${amenities.length} amenities from OpenStreetMap`);
-            await syncData();
-            setRefreshingOSM(false);
-            return;
-          }
-        }
-      }
-
-      if (res.ok && data.status === 'ok') {
-        Alert.alert('Updated', `Loaded ${data.count} real amenities from OpenStreetMap`);
+      if (res.ok && (!data.status || data.status === 'ok')) {
+        const refreshedCount = typeof data.count === 'number' ? data.count : amenities.length;
+        Alert.alert('Updated', `Loaded ${refreshedCount} amenities from OpenStreetMap`);
         await syncData();
       } else {
         const fallbackMessage = 'Using built-in amenity data because the server refresh endpoint is unavailable.';
