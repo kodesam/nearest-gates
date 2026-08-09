@@ -214,7 +214,7 @@ export default function SettingsScreen() {
         {/* Hero */}
         <View style={styles.heroContainer}>
           <View style={styles.heroOverlay}>
-            <Text style={styles.heroTitle}>Haram Navigator</Text>
+            <Text style={styles.heroTitle}>Alharam Navigator</Text>
             <Text style={styles.heroSubtitle}>Masjid Al Haram, Makkah</Text>
           </View>
         </View>
@@ -399,7 +399,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.card}>
             <Text style={styles.aboutText}>
-              Haram Navigator helps you find the nearest gate of Masjid Al Haram
+              Alharam Navigator helps you find the nearest gate of Masjid Al Haram
               and discover nearby amenities. Works offline with cached data.
               Supports both simulated and live crowd density data.
             </Text>

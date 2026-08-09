@@ -95,12 +95,13 @@ export default function AmenitiesScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.pillRow}
       >
-        {CATEGORIES.map((cat) => (
+        {CATEGORIES.map((cat, index) => (
           <TouchableOpacity
             key={cat}
             testID={`amenity-filter-${cat}`}
             style={[
               styles.pill,
+              index < CATEGORIES.length - 1 && styles.pillSpacing,
               category === cat && {
                 backgroundColor: cat === 'all' ? COLORS.primary : CATEGORY_COLORS[cat] || COLORS.primary,
               },
@@ -116,6 +117,8 @@ export default function AmenitiesScreen() {
               />
             )}
             <Text
+              allowFontScaling={false}
+              numberOfLines={1}
               style={[
                 styles.pillText,
                 category === cat && styles.pillTextActive,
@@ -149,13 +152,15 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
   title: { fontSize: 28, fontWeight: '800', color: COLORS.primary },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  pillRow: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+  pillRow: { paddingHorizontal: 20, paddingVertical: 12, paddingRight: 24 },
   pill: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
     backgroundColor: '#F3F4F6',
+    flexShrink: 0,
   },
-  pillText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  pillSpacing: { marginRight: 8 },
+  pillText: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: COLORS.textSecondary },
   pillTextActive: { color: '#fff' },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
   card: {
