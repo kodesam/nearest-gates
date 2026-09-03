@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
+import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GateData, AmenityData, FALLBACK_GATES, FALLBACK_AMENITIES } from '../data/haramData';
 import { haversineDistance } from '../utils/location';
@@ -110,6 +111,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initLocation();
     loadCachedData();
+    const unsubscribeConnectivity = NetInfo.addEventListener((state) => {
+      setIsOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    });
     // Initial connectivity check + data fetch
     checkConnectivity().then((online) => {
       if (online) {
@@ -127,6 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (watchRef.current) watchRef.current.remove();
       if (densityIntervalRef.current) clearInterval(densityIntervalRef.current);
       clearTimeout(timeout);
+      unsubscribeConnectivity();
     };
   }, []);
 
@@ -210,26 +215,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem(CACHE_KEY_AMENITIES, JSON.stringify(amenitiesData));
         await AsyncStorage.setItem(CACHE_KEY_LAST_SYNC, now);
       } else {
-        setIsOnline(false);
+        await checkConnectivity();
       }
     } catch {
-      setIsOnline(false);
+      await checkConnectivity();
     }
   };
 
   const checkConnectivity = async () => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(buildApiUrl('/'), { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        setIsOnline(true);
-        return true;
-      }
-    } catch {}
-    setIsOnline(false);
-    return false;
+      const state = await NetInfo.fetch();
+      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      setIsOnline(online);
+      return online;
+    } catch {
+      setIsOnline(false);
+      return false;
+    }
   };
 
   const fetchDensityData = async () => {
@@ -243,9 +245,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const map: Record<string, DensityInfo> = {};
         data.density.forEach((d: DensityInfo) => { map[d.gate_id] = d; });
         setDensityMap(map);
-        setIsOnline(true);
       } else {
-        setIsOnline(false);
+        await checkConnectivity();
       }
     } catch {
       // Check connectivity separately - maybe just density endpoint failed
