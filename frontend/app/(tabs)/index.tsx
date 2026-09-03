@@ -49,7 +49,7 @@ html,body,#map{width:100%;height:100%}
 <div id="map"></div>
 <script>
 var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([21.4225,39.8262],17);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2u1v_1_7b9a4ce23c1630ee1d947519',{maxZoom:20,subdomains:'abcd'}).addTo(map);
 var kaabaIcon=L.divIcon({className:'',html:'<div class="kaaba-marker"></div>',iconSize:[20,20],iconAnchor:[10,10]});
 L.marker([21.4225,39.8262],{icon:kaabaIcon}).addTo(map).bindPopup('<b>The Holy Kaaba</b>');
 var userMarker=null,userCircle=null,gateLayer=L.layerGroup().addTo(map),amenityLayer=L.layerGroup().addTo(map),routeLine=null;
