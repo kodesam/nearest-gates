@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,6 +68,7 @@ interface AppContextType {
   notifications: Notification[];
   dismissNotification: (id: string) => void;
   recommendation: GateRecommendation | null;
+  acceptLocationDisclosure: () => void;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -87,6 +89,7 @@ const AppContext = createContext<AppContextType>({
   notifications: [],
   dismissNotification: () => {},
   recommendation: null,
+  acceptLocationDisclosure: () => {},
 });
 
 export function useApp() {
@@ -104,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [densityMap, setDensityMap] = useState<Record<string, DensityInfo>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [recommendation, setRecommendation] = useState<GateRecommendation | null>(null);
+  const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const densityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecommendationRef = useRef<string>('');
@@ -140,9 +144,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (userLocation) fetchRecommendation();
   }, [userLocation]);
 
-  const initLocation = async () => {
+  const initLocation = async (requestPermission = false) => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = requestPermission
+        ? await Location.requestForegroundPermissionsAsync()
+        : await Location.getForegroundPermissionsAsync();
+      if (!requestPermission && status !== 'granted') {
+        setShowLocationDisclosure(true);
+        setIsLoading(false);
+        return;
+      }
       if (status !== 'granted') {
         setLocationError('Location permission denied. Showing default Haram location.');
         setIsLoading(false);
@@ -182,6 +193,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   };
+
+  const acceptLocationDisclosure = useCallback(() => {
+    setShowLocationDisclosure(false);
+    setIsLoading(true);
+    initLocation(true);
+  }, []);
 
   const loadCachedData = async () => {
     try {
@@ -387,9 +404,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notifications,
         dismissNotification,
         recommendation,
+        acceptLocationDisclosure,
       }}
     >
       {children}
+      <Modal
+        visible={showLocationDisclosure}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLocationDisclosure(false)}
+      >
+        <View style={disclosureStyles.backdrop}>
+          <View style={disclosureStyles.dialog} accessibilityViewIsModal>
+            <Text style={disclosureStyles.title}>Allow location access?</Text>
+            <Text style={disclosureStyles.body}>
+              Alharam Navigator collects your device location while you use the map to show your position, calculate distances, and recommend the nearest Haram gate.
+            </Text>
+            <Text style={disclosureStyles.body}>
+              Your location is used only for these navigation features and is not collected in the background or shared for advertising.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue to location permission"
+              style={disclosureStyles.button}
+              onPress={acceptLocationDisclosure}
+            >
+              <Text style={disclosureStyles.buttonText}>Continue</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AppContext.Provider>
   );
 }
+
+const disclosureStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  dialog: {
+    borderRadius: 12,
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+  },
+  title: {
+    marginBottom: 12,
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  body: {
+    marginBottom: 12,
+    color: '#374151',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  button: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#1E3F20',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+});
