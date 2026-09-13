@@ -204,7 +204,7 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 
 export default function MapScreen() {
   const router = useRouter();
-  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation, completedUmrahCheckpoints, toggleUmrahCheckpoint, resetUmrahProgress } = useApp();
+  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation, completedUmrahCheckpoints, umrahCircuitCounts, toggleUmrahCheckpoint, updateUmrahCircuit, resetUmrahProgress } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedGate, setSelectedGate] = useState<any>(null);
@@ -400,6 +400,9 @@ export default function MapScreen() {
           </View>
           {UMRAH_CHECKPOINTS.map((checkpoint, index) => {
             const completed = completedUmrahCheckpoints.includes(checkpoint.id);
+            const isCircuitCheckpoint = checkpoint.id === 'tawaf' || checkpoint.id === 'sai';
+            const circuitCheckpointId = checkpoint.id as 'tawaf' | 'sai';
+            const circuitCount = isCircuitCheckpoint ? umrahCircuitCounts[circuitCheckpointId] : 0;
             return (
               <View key={checkpoint.id} style={[styles.checkpointRow, selectedCheckpoint === checkpoint.id && styles.checkpointRowSelected]}>
                 <TouchableOpacity style={styles.checkpointInfo} onPress={() => focusCheckpoint(checkpoint.id)} activeOpacity={0.7}>
@@ -416,14 +419,38 @@ export default function MapScreen() {
                   </View>
                   <Ionicons name="location-outline" size={19} color={COLORS.secondary} />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  testID={`btn-checkpoint-${checkpoint.id}`}
-                  style={[styles.completeButton, completed && styles.completeButtonDone]}
-                  onPress={() => toggleUmrahCheckpoint(checkpoint.id)}
-                  accessibilityLabel={`${completed ? 'Mark incomplete' : 'Mark complete'}: ${checkpoint.title}`}
-                >
-                  <Ionicons name={completed ? 'checkmark' : 'checkmark-circle-outline'} size={19} color={completed ? '#fff' : COLORS.primary} />
-                </TouchableOpacity>
+                {isCircuitCheckpoint ? (
+                  <View style={styles.circuitControls}>
+                    <TouchableOpacity
+                      testID={`btn-${checkpoint.id}-decrement`}
+                      style={[styles.circuitButton, circuitCount === 0 && styles.circuitButtonDisabled]}
+                      onPress={() => updateUmrahCircuit(circuitCheckpointId, -1)}
+                      disabled={circuitCount === 0}
+                      accessibilityLabel={`Remove ${checkpoint.title} circuit`}
+                    >
+                      <Ionicons name="remove" size={17} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.circuitCount, completed && styles.circuitCountDone]}>{circuitCount}/7</Text>
+                    <TouchableOpacity
+                      testID={`btn-${checkpoint.id}-increment`}
+                      style={[styles.circuitButton, circuitCount === 7 && styles.circuitButtonDisabled]}
+                      onPress={() => updateUmrahCircuit(circuitCheckpointId, 1)}
+                      disabled={circuitCount === 7}
+                      accessibilityLabel={`Add ${checkpoint.title} circuit`}
+                    >
+                      <Ionicons name="add" size={17} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    testID={`btn-checkpoint-${checkpoint.id}`}
+                    style={[styles.completeButton, completed && styles.completeButtonDone]}
+                    onPress={() => toggleUmrahCheckpoint(checkpoint.id)}
+                    accessibilityLabel={`${completed ? 'Mark incomplete' : 'Mark complete'}: ${checkpoint.title}`}
+                  >
+                    <Ionicons name={completed ? 'checkmark' : 'checkmark-circle-outline'} size={19} color={completed ? '#fff' : COLORS.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}
@@ -620,6 +647,11 @@ const styles = StyleSheet.create({
   checkpointSubtitle: { fontSize: 10, color: COLORS.textSecondary, marginTop: 1 },
   completeButton: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#C8A951', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
   completeButtonDone: { backgroundColor: '#15803D', borderColor: '#15803D' },
+  circuitControls: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+  circuitButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3EBD4', alignItems: 'center', justifyContent: 'center' },
+  circuitButtonDisabled: { opacity: 0.4 },
+  circuitCount: { width: 32, fontSize: 12, fontWeight: '800', color: COLORS.primary, textAlign: 'center' },
+  circuitCountDone: { color: '#15803D' },
   resetProgressButton: { alignItems: 'center', paddingTop: 8 },
   resetProgressText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
   bottomPanel: {

@@ -9,6 +9,7 @@ const CACHE_KEY_GATES = '@haram_gates';
 const CACHE_KEY_AMENITIES = '@haram_amenities';
 const CACHE_KEY_LAST_SYNC = '@haram_last_sync';
 const CACHE_KEY_UMRAH_PROGRESS = '@umrah_progress';
+const CACHE_KEY_UMRAH_CIRCUITS = '@umrah_circuits';
 
 interface UserLocation {
   latitude: number;
@@ -68,7 +69,9 @@ interface AppContextType {
   dismissNotification: (id: string) => void;
   recommendation: GateRecommendation | null;
   completedUmrahCheckpoints: string[];
+  umrahCircuitCounts: Record<'tawaf' | 'sai', number>;
   toggleUmrahCheckpoint: (checkpointId: string) => void;
+  updateUmrahCircuit: (checkpointId: 'tawaf' | 'sai', change: number) => void;
   resetUmrahProgress: () => void;
 }
 
@@ -91,7 +94,9 @@ const AppContext = createContext<AppContextType>({
   dismissNotification: () => {},
   recommendation: null,
   completedUmrahCheckpoints: [],
+  umrahCircuitCounts: { tawaf: 0, sai: 0 },
   toggleUmrahCheckpoint: () => {},
+  updateUmrahCircuit: () => {},
   resetUmrahProgress: () => {},
 });
 
@@ -111,6 +116,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [recommendation, setRecommendation] = useState<GateRecommendation | null>(null);
   const [completedUmrahCheckpoints, setCompletedUmrahCheckpoints] = useState<string[]>([]);
+  const [umrahCircuitCounts, setUmrahCircuitCounts] = useState<Record<'tawaf' | 'sai', number>>({ tawaf: 0, sai: 0 });
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const densityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecommendationRef = useRef<string>('');
@@ -192,10 +198,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cachedAmenities = await AsyncStorage.getItem(CACHE_KEY_AMENITIES);
       const cachedSync = await AsyncStorage.getItem(CACHE_KEY_LAST_SYNC);
       const cachedUmrahProgress = await AsyncStorage.getItem(CACHE_KEY_UMRAH_PROGRESS);
+      const cachedUmrahCircuits = await AsyncStorage.getItem(CACHE_KEY_UMRAH_CIRCUITS);
       if (cachedGates) setGates(JSON.parse(cachedGates));
       if (cachedAmenities) setAmenities(JSON.parse(cachedAmenities));
       if (cachedSync) setLastSynced(cachedSync);
       if (cachedUmrahProgress) setCompletedUmrahCheckpoints(JSON.parse(cachedUmrahProgress));
+      if (cachedUmrahCircuits) {
+        const parsedCounts = JSON.parse(cachedUmrahCircuits);
+        setUmrahCircuitCounts({
+          tawaf: Math.min(7, Math.max(0, Number(parsedCounts.tawaf) || 0)),
+          sai: Math.min(7, Math.max(0, Number(parsedCounts.sai) || 0)),
+        });
+      }
     } catch {}
   };
 
@@ -349,6 +363,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleUmrahCheckpoint = useCallback((checkpointId: string) => {
+    if (checkpointId === 'tawaf' || checkpointId === 'sai') return;
     setCompletedUmrahCheckpoints((previous) => {
       const next = previous.includes(checkpointId)
         ? previous.filter((id) => id !== checkpointId)
@@ -358,9 +373,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const updateUmrahCircuit = useCallback((checkpointId: 'tawaf' | 'sai', change: number) => {
+    setUmrahCircuitCounts((previous) => {
+      const next = { ...previous, [checkpointId]: Math.min(7, Math.max(0, previous[checkpointId] + change)) };
+      AsyncStorage.setItem(CACHE_KEY_UMRAH_CIRCUITS, JSON.stringify(next)).catch(() => {});
+      setCompletedUmrahCheckpoints((completed) => {
+        const isComplete = next[checkpointId] === 7;
+        const nextCompleted = isComplete
+          ? completed.includes(checkpointId) ? completed : [...completed, checkpointId]
+          : completed.filter((id) => id !== checkpointId);
+        AsyncStorage.setItem(CACHE_KEY_UMRAH_PROGRESS, JSON.stringify(nextCompleted)).catch(() => {});
+        return nextCompleted;
+      });
+      return next;
+    });
+  }, []);
+
   const resetUmrahProgress = useCallback(() => {
     setCompletedUmrahCheckpoints([]);
+    setUmrahCircuitCounts({ tawaf: 0, sai: 0 });
     AsyncStorage.removeItem(CACHE_KEY_UMRAH_PROGRESS).catch(() => {});
+    AsyncStorage.removeItem(CACHE_KEY_UMRAH_CIRCUITS).catch(() => {});
   }, []);
 
   const gatesWithDistance = React.useMemo(() => {
@@ -412,7 +445,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dismissNotification,
         recommendation,
         completedUmrahCheckpoints,
+        umrahCircuitCounts,
         toggleUmrahCheckpoint,
+        updateUmrahCircuit,
         resetUmrahProgress,
       }}
     >
