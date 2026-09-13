@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.daleel.alharam.nav",
-      "versionCode": 1,
+      "versionCode": 4,
       "minSdkVersion": 21,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/favicon.png",
