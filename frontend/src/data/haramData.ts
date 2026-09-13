@@ -22,6 +22,22 @@ export const KAABA_LOCATION = {
   longitude: 39.8262,
 };
 
+export interface UmrahCheckpoint {
+  id: string;
+  title: string;
+  subtitle: string;
+  latitude: number;
+  longitude: number;
+  icon: string;
+}
+
+export const UMRAH_CHECKPOINTS: UmrahCheckpoint[] = [
+  { id: 'ihram', title: 'Enter Ihram', subtitle: 'Make your intention at the Miqat', latitude: 21.4435, longitude: 39.8092, icon: 'moon' },
+  { id: 'tawaf', title: 'Complete Tawaf', subtitle: 'Circle the Holy Kaaba seven times', latitude: 21.4225, longitude: 39.8262, icon: 'refresh' },
+  { id: 'sai', title: "Complete Sa'i", subtitle: 'Walk between Safa and Marwah seven times', latitude: 21.4230, longitude: 39.8272, icon: 'walk' },
+  { id: 'halq', title: 'Halq or Taqsir', subtitle: 'Trim or shave your hair to finish Umrah', latitude: 21.4225, longitude: 39.8262, icon: 'checkmark-circle' },
+];
+
 export const HARAM_BOUNDS = {
   north: 21.4248,
   south: 21.4205,

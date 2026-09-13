@@ -8,6 +8,7 @@ import { buildApiUrl } from '../utils/backend';
 const CACHE_KEY_GATES = '@haram_gates';
 const CACHE_KEY_AMENITIES = '@haram_amenities';
 const CACHE_KEY_LAST_SYNC = '@haram_last_sync';
+const CACHE_KEY_UMRAH_PROGRESS = '@umrah_progress';
 
 interface UserLocation {
   latitude: number;
@@ -66,6 +67,9 @@ interface AppContextType {
   notifications: Notification[];
   dismissNotification: (id: string) => void;
   recommendation: GateRecommendation | null;
+  completedUmrahCheckpoints: string[];
+  toggleUmrahCheckpoint: (checkpointId: string) => void;
+  resetUmrahProgress: () => void;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -86,6 +90,9 @@ const AppContext = createContext<AppContextType>({
   notifications: [],
   dismissNotification: () => {},
   recommendation: null,
+  completedUmrahCheckpoints: [],
+  toggleUmrahCheckpoint: () => {},
+  resetUmrahProgress: () => {},
 });
 
 export function useApp() {
@@ -103,6 +110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [densityMap, setDensityMap] = useState<Record<string, DensityInfo>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [recommendation, setRecommendation] = useState<GateRecommendation | null>(null);
+  const [completedUmrahCheckpoints, setCompletedUmrahCheckpoints] = useState<string[]>([]);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const densityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecommendationRef = useRef<string>('');
@@ -183,9 +191,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cachedGates = await AsyncStorage.getItem(CACHE_KEY_GATES);
       const cachedAmenities = await AsyncStorage.getItem(CACHE_KEY_AMENITIES);
       const cachedSync = await AsyncStorage.getItem(CACHE_KEY_LAST_SYNC);
+      const cachedUmrahProgress = await AsyncStorage.getItem(CACHE_KEY_UMRAH_PROGRESS);
       if (cachedGates) setGates(JSON.parse(cachedGates));
       if (cachedAmenities) setAmenities(JSON.parse(cachedAmenities));
       if (cachedSync) setLastSynced(cachedSync);
+      if (cachedUmrahProgress) setCompletedUmrahCheckpoints(JSON.parse(cachedUmrahProgress));
     } catch {}
   };
 
@@ -338,6 +348,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
+  const toggleUmrahCheckpoint = useCallback((checkpointId: string) => {
+    setCompletedUmrahCheckpoints((previous) => {
+      const next = previous.includes(checkpointId)
+        ? previous.filter((id) => id !== checkpointId)
+        : [...previous, checkpointId];
+      AsyncStorage.setItem(CACHE_KEY_UMRAH_PROGRESS, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const resetUmrahProgress = useCallback(() => {
+    setCompletedUmrahCheckpoints([]);
+    AsyncStorage.removeItem(CACHE_KEY_UMRAH_PROGRESS).catch(() => {});
+  }, []);
+
   const gatesWithDistance = React.useMemo(() => {
     if (!userLocation) return gates.map((g) => ({ ...g, distance: 0 }));
     return gates
@@ -386,6 +411,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notifications,
         dismissNotification,
         recommendation,
+        completedUmrahCheckpoints,
+        toggleUmrahCheckpoint,
+        resetUmrahProgress,
       }}
     >
       {children}
