@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -189,6 +190,7 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 
 export default function MapScreen() {
   const router = useRouter();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -268,6 +270,7 @@ export default function MapScreen() {
 
   // Get the latest unread notification
   const latestNotif = notifications.find((n) => !n.read) || null;
+  const compactLayout = windowWidth < 360 || windowHeight < 700;
 
   return (
     <View style={styles.container} testID="map-screen">
@@ -301,7 +304,7 @@ export default function MapScreen() {
       </SafeAreaView>
 
       {/* FABs */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { right: compactLayout ? 12 : 16, bottom: compactLayout ? 220 : 280 }]}>
         <TouchableOpacity testID="btn-indoor-nav" style={[styles.fab, { backgroundColor: '#6366F1' }]} onPress={() => router.push('/indoor')} activeOpacity={0.8}>
           <Ionicons name="layers" size={22} color="#fff" />
         </TouchableOpacity>
@@ -338,7 +341,7 @@ export default function MapScreen() {
       )}
 
       {/* Density Legend */}
-      <View style={styles.legendContainer}>
+      <View style={[styles.legendContainer, { left: compactLayout ? 8 : 12, bottom: compactLayout ? 220 : 280 }]}>
         {['low', 'medium', 'high', 'very_high'].map((lvl) => (
           <View key={lvl} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: DENSITY_COLORS[lvl] }]} />
@@ -349,7 +352,7 @@ export default function MapScreen() {
 
       {/* Bottom Panel */}
       {displayGate && (
-        <View style={[styles.bottomPanel, panelExpanded && styles.bottomPanelExpanded]}>
+        <View style={[styles.bottomPanel, compactLayout && styles.bottomPanelCompact, panelExpanded && styles.bottomPanelExpanded]}>
           <TouchableOpacity
             testID="btn-toggle-panel"
             style={styles.panelDragArea}
@@ -516,6 +519,7 @@ const styles = StyleSheet.create({
     elevation: 12, zIndex: 20, maxHeight: '75%',
   },
   bottomPanelExpanded: { maxHeight: '75%' },
+  bottomPanelCompact: { paddingHorizontal: 14, maxHeight: '80%' },
   panelDragArea: { paddingTop: 12, paddingBottom: 8, alignItems: 'center' },
   panelDragIndicator: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
   panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

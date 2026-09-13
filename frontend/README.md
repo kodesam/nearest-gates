@@ -15,6 +15,10 @@ Alharam Navigator helps users find the nearest gates of Masjid Al Haram and near
    ```bash
    npx expo start
    ```
+3. Build app 
+   ```
+    eas build --platform android --profile production
+   ```` 
 
 The app uses file-based routing in the `app` directory and supports development builds on Android and iOS.
 

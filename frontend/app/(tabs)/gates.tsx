@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Platform,
+  View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,9 +27,11 @@ const DENSITY_COLORS: Record<string, string> = {
 const SIDE_FILTERS = ['all', 'north', 'south', 'east', 'west'];
 
 export default function GatesScreen() {
+  const { width } = useWindowDimensions();
   const { gatesWithDistance, userLocation, densityMap } = useApp();
   const [search, setSearch] = useState('');
   const [sideFilter, setSideFilter] = useState('all');
+  const contentPadding = width < 360 ? 12 : 20;
 
   const filtered = useMemo(() => {
     let result = gatesWithDistance;
@@ -87,12 +89,12 @@ export default function GatesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingHorizontal: contentPadding }]}>
         <Text style={styles.title}>Haram Gates</Text>
         <Text style={styles.subtitle}>{filtered.length} gates found</Text>
       </View>
 
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { marginHorizontal: contentPadding }]}>
         <Ionicons name="search" size={18} color={COLORS.textSecondary} style={styles.searchIcon} />
         <TextInput
           testID="gates-search-input"
@@ -109,7 +111,7 @@ export default function GatesScreen() {
         )}
       </View>
 
-      <View style={styles.filterRow}>
+      <View style={[styles.filterRow, { paddingHorizontal: contentPadding }]}>
         {SIDE_FILTERS.map((f) => (
           <TouchableOpacity
             key={f}
@@ -128,7 +130,7 @@ export default function GatesScreen() {
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={renderGate}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingHorizontal: contentPadding }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -144,7 +146,7 @@ export default function GatesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.primary },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: COLORS.primary },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
   searchContainer: {
     flexDirection: 'row', alignItems: 'center', marginHorizontal: 20,
@@ -154,10 +156,10 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
   filterRow: {
-    flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8,
+    flexDirection: 'row', paddingVertical: 12, gap: 8,
   },
   filterPill: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+    flex: 1, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8, borderRadius: 20,
     backgroundColor: '#F3F4F6',
   },
   filterPillActive: { backgroundColor: COLORS.primary },
