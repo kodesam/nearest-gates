@@ -415,7 +415,9 @@ export default function MapScreen() {
                   </View>
                   <View style={styles.checkpointCopy}>
                     <Text style={[styles.checkpointTitle, completed && styles.checkpointTitleDone]}>{checkpoint.title}</Text>
-                    <Text style={styles.checkpointSubtitle} numberOfLines={1}>{checkpoint.subtitle}</Text>
+                    <Text style={styles.checkpointSubtitle} numberOfLines={1}>
+                      {isCircuitCheckpoint ? `${checkpoint.subtitle} • GPS counts laps` : checkpoint.subtitle}
+                    </Text>
                   </View>
                   <Ionicons name="location-outline" size={19} color={COLORS.secondary} />
                 </TouchableOpacity>

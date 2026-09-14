@@ -22,6 +22,16 @@ export const KAABA_LOCATION = {
   longitude: 39.8262,
 };
 
+export const SAFA_LOCATION = {
+  latitude: 21.4228,
+  longitude: 39.8284,
+};
+
+export const MARWA_LOCATION = {
+  latitude: 21.4234,
+  longitude: 39.8263,
+};
+
 export interface UmrahCheckpoint {
   id: string;
   title: string;
