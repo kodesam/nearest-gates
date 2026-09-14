@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, FlatList,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, FlatList, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -69,7 +69,7 @@ const MAP_HTML = `<!DOCTYPE html>
 </head><body><div id="map"></div>
 <script>
 var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([21.4225,39.8262],18);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:22,subdomains:'abcd'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2u1v_1_7b9a4ce23c1630ee1d947519',{maxZoom:22,subdomains:'abcd'}).addTo(map);
 var kaabaIcon=L.divIcon({className:'',html:'<div class="kaaba-marker"></div>',iconSize:[20,20],iconAnchor:[10,10]});
 L.marker([21.4225,39.8262],{icon:kaabaIcon}).addTo(map).bindPopup('<b>The Holy Kaaba</b>');
 L.polygon([[21.4205,39.8238],[21.4205,39.8288],[21.4248,39.8288],[21.4248,39.8238]],{color:'#1E3F20',weight:2,fillColor:'#1E3F20',fillOpacity:0.05,dashArray:'6,4'}).addTo(map);
@@ -185,6 +185,7 @@ function MobileIndoorMap({ onMessage, mapRef }: { onMessage: (data: any) => void
 
 export default function IndoorScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { userLocation } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -194,6 +195,7 @@ export default function IndoorScreen() {
   const [path, setPath] = useState<IndoorPOI[]>([]);
   const [showPoiList, setShowPoiList] = useState(false);
   const [selectingFor, setSelectingFor] = useState<'start' | 'end' | null>(null);
+  const narrowLayout = width < 360;
 
   const floorPois = useMemo(() => INDOOR_POIS.filter((p) => p.floor === selectedFloor), [selectedFloor]);
 
@@ -327,12 +329,12 @@ export default function IndoorScreen() {
 
       <View style={styles.navPanel}>
         <Text style={styles.navTitle}>Navigate</Text>
-        <View style={styles.navRow}>
-          <TouchableOpacity testID="btn-select-start" style={[styles.navInput, selectingFor === 'start' && styles.navInputActive]} onPress={() => { setSelectingFor('start'); setShowPoiList(true); }}>
+        <View style={[styles.navRow, narrowLayout && styles.navRowNarrow]}>
+          <TouchableOpacity testID="btn-select-start" style={[styles.navInput, narrowLayout && styles.navInputNarrow, selectingFor === 'start' && styles.navInputActive]} onPress={() => { setSelectingFor('start'); setShowPoiList(true); }}>
             <View style={[styles.navDot, { backgroundColor: '#22C55E' }]} />
             <Text style={styles.navInputText} numberOfLines={1}>{navStart ? navStart.name : 'Select start point'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="btn-select-end" style={[styles.navInput, selectingFor === 'end' && styles.navInputActive]} onPress={() => { setSelectingFor('end'); setShowPoiList(true); }}>
+          <TouchableOpacity testID="btn-select-end" style={[styles.navInput, narrowLayout && styles.navInputNarrow, selectingFor === 'end' && styles.navInputActive]} onPress={() => { setSelectingFor('end'); setShowPoiList(true); }}>
             <View style={[styles.navDot, { backgroundColor: '#EF4444' }]} />
             <Text style={styles.navInputText} numberOfLines={1}>{navEnd ? navEnd.name : 'Select destination'}</Text>
           </TouchableOpacity>
@@ -400,7 +402,9 @@ const styles = StyleSheet.create({
   navPanel: { backgroundColor: COLORS.surface, paddingHorizontal: 16, paddingVertical: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 16, borderTopWidth: 1, borderTopColor: COLORS.border },
   navTitle: { fontSize: 12, fontWeight: '700', color: COLORS.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   navRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  navRowNarrow: { flexWrap: 'wrap' },
   navInput: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  navInputNarrow: { flexBasis: '100%' },
   navInputActive: { borderWidth: 2, borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   navDot: { width: 10, height: 10, borderRadius: 5 },
   navInputText: { flex: 1, fontSize: 13, color: COLORS.text },

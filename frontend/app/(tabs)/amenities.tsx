@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,8 +37,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function AmenitiesScreen() {
+  const { width } = useWindowDimensions();
   const { amenitiesWithDistance, userLocation } = useApp();
   const [category, setCategory] = useState('all');
+  const contentPadding = width < 360 ? 12 : 20;
 
   const filtered = useMemo(() => {
     if (category === 'all') return amenitiesWithDistance;
@@ -85,7 +87,7 @@ export default function AmenitiesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingHorizontal: contentPadding }]}>
         <Text style={styles.title}>Nearby Amenities</Text>
         <Text style={styles.subtitle}>{filtered.length} places found</Text>
       </View>
@@ -93,14 +95,15 @@ export default function AmenitiesScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillRow}
+        contentContainerStyle={[styles.pillRow, { paddingHorizontal: contentPadding }]}
       >
-        {CATEGORIES.map((cat) => (
+        {CATEGORIES.map((cat, index) => (
           <TouchableOpacity
             key={cat}
             testID={`amenity-filter-${cat}`}
             style={[
               styles.pill,
+              index < CATEGORIES.length - 1 && styles.pillSpacing,
               category === cat && {
                 backgroundColor: cat === 'all' ? COLORS.primary : CATEGORY_COLORS[cat] || COLORS.primary,
               },
@@ -116,6 +119,8 @@ export default function AmenitiesScreen() {
               />
             )}
             <Text
+              allowFontScaling={false}
+              numberOfLines={1}
               style={[
                 styles.pillText,
                 category === cat && styles.pillTextActive,
@@ -131,7 +136,7 @@ export default function AmenitiesScreen() {
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={renderAmenity}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingHorizontal: contentPadding }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -147,15 +152,17 @@ export default function AmenitiesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.primary },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: COLORS.primary },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  pillRow: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+  pillRow: { paddingHorizontal: 20, paddingVertical: 12, paddingRight: 24 },
   pill: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
     backgroundColor: '#F3F4F6',
+    flexShrink: 0,
   },
-  pillText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  pillSpacing: { marginRight: 8 },
+  pillText: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: COLORS.textSecondary },
   pillTextActive: { color: '#fff' },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
   card: {

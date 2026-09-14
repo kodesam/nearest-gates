@@ -1,4 +1,4 @@
-package com.daleel.alharam.nav
+package com.alharam.nav
 
 import android.app.Application
 import android.content.res.Configuration
