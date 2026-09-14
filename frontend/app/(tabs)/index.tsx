@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
-import { KAABA_LOCATION } from '../../src/data/haramData';
+import { KAABA_LOCATION, UMRAH_CHECKPOINTS } from '../../src/data/haramData';
 import { formatDistance, bearing, bearingToArrow, haversineDistance } from '../../src/utils/location';
 import NotificationBanner from '../../src/components/NotificationBanner';
 
@@ -42,6 +42,7 @@ html,body,#map{width:100%;height:100%}
 .gate-dot{border:2px solid #fff;border-radius:50%;width:14px;height:14px;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
 .amenity-dot{border:2px solid #fff;border-radius:50%;width:12px;height:12px;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
 .kaaba-marker{background:#000;border:2px solid #C8A951;width:16px;height:16px;box-shadow:0 0 0 4px rgba(200,169,81,0.3)}
+.checkpoint-dot{border:2px solid #fff;border-radius:50%;width:24px;height:24px;color:#fff;font:700 12px/24px system-ui;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.35)}
 .leaflet-popup-content{font-family:system-ui;font-size:13px}
 .leaflet-popup-content b{color:#1E3F20}
 .density-badge{display:inline-block;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:bold;color:#fff;margin-top:4px}
@@ -53,7 +54,7 @@ var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([21.42
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2u1v_1_7b9a4ce23c1630ee1d947519',{maxZoom:20,subdomains:'abcd'}).addTo(map);
 var kaabaIcon=L.divIcon({className:'',html:'<div class="kaaba-marker"></div>',iconSize:[20,20],iconAnchor:[10,10]});
 L.marker([21.4225,39.8262],{icon:kaabaIcon}).addTo(map).bindPopup('<b>The Holy Kaaba</b>');
-var userMarker=null,userCircle=null,gateLayer=L.layerGroup().addTo(map),amenityLayer=L.layerGroup().addTo(map),routeLine=null;
+var userMarker=null,userCircle=null,gateLayer=L.layerGroup().addTo(map),amenityLayer=L.layerGroup().addTo(map),checkpointLayer=L.layerGroup().addTo(map),routeLine=null;
 var densityColors={low:'#22C55E',medium:'#F59E0B',high:'#F97316',very_high:'#EF4444'};
 function updateUser(lat,lng,acc){
   if(userMarker)map.removeLayer(userMarker);
@@ -88,6 +89,19 @@ function setAmenities(list){
     L.marker([a.latitude,a.longitude],{icon:icon}).bindPopup('<b>'+a.name+'</b><br/><span style="color:#666">'+a.category.replace(/_/g,' ')+'</span>').addTo(amenityLayer);
   });
 }
+function setCheckpoints(list,completed){
+  checkpointLayer.clearLayers();
+  list.forEach(function(c,index){
+    var done=completed.indexOf(c.id)!==-1;
+    var color=done?'#15803D':'#C8A951';
+    var label=done?'&#10003;':String(index+1);
+    var icon=L.divIcon({className:'',html:'<div class="checkpoint-dot" style="background:'+color+'">'+label+'</div>',iconSize:[28,28],iconAnchor:[14,14]});
+    var popup='<b>'+c.title+'</b><br/><span style="color:#666">'+c.subtitle+'</span><br/><span class="density-badge" style="background:'+color+'">'+(done?'Completed':'Tap marker to view')+'</span>';
+    var marker=L.marker([c.latitude,c.longitude],{icon:icon,zIndexOffset:500}).bindPopup(popup);
+    marker.on('click',function(){send({type:'checkpointSelect',checkpoint:c})});
+    checkpointLayer.addLayer(marker);
+  });
+}
 function centerOn(lat,lng,zoom){map.flyTo([lat,lng],zoom||17,{duration:0.8})}
 function showRoute(fLat,fLng,tLat,tLng){
   clearRoute();
@@ -101,6 +115,7 @@ function handle(m){
   if(m.type==='gates'){storedGates=m.data;setGates(storedGates,storedDensity)}
   if(m.type==='density'){storedDensity=m.data;setGates(storedGates,storedDensity)}
   if(m.type==='amenities')setAmenities(m.data);
+  if(m.type==='checkpoints')setCheckpoints(m.data,m.completed||[]);
   if(m.type==='center')centerOn(m.lat,m.lng,m.zoom);
   if(m.type==='route')showRoute(m.fLat,m.fLng,m.tLat,m.tLng);
   if(m.type==='clearRoute')clearRoute();
@@ -191,12 +206,14 @@ function MobileMapView({ onMessage, mapRef }: { onMessage: (data: any) => void; 
 export default function MapScreen() {
   const router = useRouter();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation } = useApp();
+  const { userLocation, nearestGate, gates, amenities, isOnline, isLoading, densityMap, notifications, dismissNotification, recommendation, gatesWithDistance, locationError, retryLocation, completedUmrahCheckpoints, umrahCircuitCounts, toggleUmrahCheckpoint, updateUmrahCircuit, resetUmrahProgress } = useApp();
   const mapRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [selectedGate, setSelectedGate] = useState<any>(null);
   const [showRouteVisible, setShowRouteVisible] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
+  const [umrahTrackerOpen, setUmrahTrackerOpen] = useState(false);
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
 
   // Top 5 nearest gates
   const nearbyGates = useMemo(() => gatesWithDistance.slice(0, 5), [gatesWithDistance]);
@@ -206,6 +223,10 @@ export default function MapScreen() {
   const handleMessage = useCallback((data: any) => {
     if (data.type === 'ready') setMapReady(true);
     if (data.type === 'gateSelect') setSelectedGate(data.gate);
+    if (data.type === 'checkpointSelect') {
+      setSelectedCheckpoint(data.checkpoint.id);
+      setUmrahTrackerOpen(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -222,6 +243,11 @@ export default function MapScreen() {
     if (!mapReady || amenities.length === 0) return;
     inject({ type: 'amenities', data: amenities });
   }, [amenities, mapReady, inject]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    inject({ type: 'checkpoints', data: UMRAH_CHECKPOINTS, completed: completedUmrahCheckpoints });
+  }, [completedUmrahCheckpoints, mapReady, inject]);
 
   // Send density data to map for color-coded markers
   useEffect(() => {
@@ -268,6 +294,13 @@ export default function MapScreen() {
     inject({ type: 'center', lat: gate.latitude, lng: gate.longitude, zoom: 18 });
   };
 
+  const focusCheckpoint = (checkpointId: string) => {
+    const checkpoint = UMRAH_CHECKPOINTS.find((item) => item.id === checkpointId);
+    if (!checkpoint) return;
+    setSelectedCheckpoint(checkpointId);
+    inject({ type: 'center', lat: checkpoint.latitude, lng: checkpoint.longitude, zoom: checkpointId === 'ihram' ? 14 : 19 });
+  };
+
   // Get the latest unread notification
   const latestNotif = notifications.find((n) => !n.read) || null;
   const compactLayout = windowWidth < 360 || windowHeight < 700;
@@ -305,6 +338,9 @@ export default function MapScreen() {
 
       {/* FABs */}
       <View style={[styles.fabContainer, { right: compactLayout ? 12 : 16, bottom: compactLayout ? 220 : 280 }]}>
+        <TouchableOpacity testID="btn-umrah-tracker" style={[styles.fab, styles.umrahFab]} onPress={() => setUmrahTrackerOpen(true)} activeOpacity={0.8}>
+          <Ionicons name="footsteps" size={22} color="#fff" />
+        </TouchableOpacity>
         <TouchableOpacity testID="btn-indoor-nav" style={[styles.fab, { backgroundColor: '#6366F1' }]} onPress={() => router.push('/indoor')} activeOpacity={0.8}>
           <Ionicons name="layers" size={22} color="#fff" />
         </TouchableOpacity>
@@ -350,8 +386,89 @@ export default function MapScreen() {
         ))}
       </View>
 
+      {/* Umrah progress tracker */}
+      {umrahTrackerOpen && (
+        <View style={styles.umrahPanel} testID="umrah-tracker">
+          <View style={styles.umrahHeader}>
+            <View>
+              <Text style={styles.umrahTitle}>My Umrah</Text>
+              <Text style={styles.umrahProgress}>{completedUmrahCheckpoints.length} of {UMRAH_CHECKPOINTS.length} steps completed</Text>
+            </View>
+            <TouchableOpacity testID="btn-close-umrah-tracker" onPress={() => setUmrahTrackerOpen(false)} hitSlop={10}>
+              <Ionicons name="close-circle" size={25} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${(completedUmrahCheckpoints.length / UMRAH_CHECKPOINTS.length) * 100}%` }]} />
+          </View>
+          {UMRAH_CHECKPOINTS.map((checkpoint, index) => {
+            const completed = completedUmrahCheckpoints.includes(checkpoint.id);
+            const isCircuitCheckpoint = checkpoint.id === 'tawaf' || checkpoint.id === 'sai';
+            const circuitCheckpointId = checkpoint.id as 'tawaf' | 'sai';
+            const circuitCount = isCircuitCheckpoint ? umrahCircuitCounts[circuitCheckpointId] : 0;
+            return (
+              <View key={checkpoint.id} style={[styles.checkpointRow, selectedCheckpoint === checkpoint.id && styles.checkpointRowSelected]}>
+                <TouchableOpacity style={styles.checkpointInfo} onPress={() => focusCheckpoint(checkpoint.id)} activeOpacity={0.7}>
+                  <View style={[styles.checkpointNumber, completed && styles.checkpointNumberDone]}>
+                    {completed ? (
+                      <Ionicons name="checkmark" size={15} color="#fff" />
+                    ) : (
+                      <Text style={styles.checkpointNumberText}>{index + 1}</Text>
+                    )}
+                  </View>
+                  <View style={styles.checkpointCopy}>
+                    <Text style={[styles.checkpointTitle, completed && styles.checkpointTitleDone]}>{checkpoint.title}</Text>
+                    <Text style={styles.checkpointSubtitle} numberOfLines={1}>
+                      {isCircuitCheckpoint ? `${checkpoint.subtitle} • GPS counts laps` : checkpoint.subtitle}
+                    </Text>
+                  </View>
+                  <Ionicons name="location-outline" size={19} color={COLORS.secondary} />
+                </TouchableOpacity>
+                {isCircuitCheckpoint ? (
+                  <View style={styles.circuitControls}>
+                    <TouchableOpacity
+                      testID={`btn-${checkpoint.id}-decrement`}
+                      style={[styles.circuitButton, circuitCount === 0 && styles.circuitButtonDisabled]}
+                      onPress={() => updateUmrahCircuit(circuitCheckpointId, -1)}
+                      disabled={circuitCount === 0}
+                      accessibilityLabel={`Remove ${checkpoint.title} circuit`}
+                    >
+                      <Ionicons name="remove" size={17} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.circuitCount, completed && styles.circuitCountDone]}>{circuitCount}/7</Text>
+                    <TouchableOpacity
+                      testID={`btn-${checkpoint.id}-increment`}
+                      style={[styles.circuitButton, circuitCount === 7 && styles.circuitButtonDisabled]}
+                      onPress={() => updateUmrahCircuit(circuitCheckpointId, 1)}
+                      disabled={circuitCount === 7}
+                      accessibilityLabel={`Add ${checkpoint.title} circuit`}
+                    >
+                      <Ionicons name="add" size={17} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    testID={`btn-checkpoint-${checkpoint.id}`}
+                    style={[styles.completeButton, completed && styles.completeButtonDone]}
+                    onPress={() => toggleUmrahCheckpoint(checkpoint.id)}
+                    accessibilityLabel={`${completed ? 'Mark incomplete' : 'Mark complete'}: ${checkpoint.title}`}
+                  >
+                    <Ionicons name={completed ? 'checkmark' : 'checkmark-circle-outline'} size={19} color={completed ? '#fff' : COLORS.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+          {completedUmrahCheckpoints.length === UMRAH_CHECKPOINTS.length && (
+            <TouchableOpacity style={styles.resetProgressButton} onPress={resetUmrahProgress}>
+              <Text style={styles.resetProgressText}>Start a new Umrah</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Bottom Panel */}
-      {displayGate && (
+      {!umrahTrackerOpen && displayGate && (
         <View style={[styles.bottomPanel, compactLayout && styles.bottomPanelCompact, panelExpanded && styles.bottomPanelExpanded]}>
           <TouchableOpacity
             testID="btn-toggle-panel"
@@ -490,6 +607,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
   fabContainer: { position: 'absolute', right: 16, bottom: 280, zIndex: 10 },
   fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center', elevation: 6 },
+  umrahFab: { backgroundColor: COLORS.primary, marginBottom: 12 },
   legendContainer: {
     position: 'absolute', left: 12, bottom: 280, zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 8,
@@ -512,6 +630,35 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 4,
   },
   locationBannerBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  umrahPanel: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20, elevation: 12, zIndex: 20,
+  },
+  umrahHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  umrahTitle: { fontSize: 20, fontWeight: '800', color: COLORS.primary },
+  umrahProgress: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  progressTrack: { height: 6, backgroundColor: '#E5E7EB', borderRadius: 3, overflow: 'hidden', marginTop: 14, marginBottom: 12 },
+  progressFill: { height: '100%', backgroundColor: '#15803D', borderRadius: 3 },
+  checkpointRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8 },
+  checkpointRowSelected: { backgroundColor: '#F0F7F0' },
+  checkpointInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  checkpointNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3EBD4', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  checkpointNumberDone: { backgroundColor: '#15803D' },
+  checkpointNumberText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  checkpointCopy: { flex: 1, marginRight: 6 },
+  checkpointTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  checkpointTitleDone: { color: '#15803D' },
+  checkpointSubtitle: { fontSize: 10, color: COLORS.textSecondary, marginTop: 1 },
+  completeButton: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#C8A951', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
+  completeButtonDone: { backgroundColor: '#15803D', borderColor: '#15803D' },
+  circuitControls: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+  circuitButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3EBD4', alignItems: 'center', justifyContent: 'center' },
+  circuitButtonDisabled: { opacity: 0.4 },
+  circuitCount: { width: 32, fontSize: 12, fontWeight: '800', color: COLORS.primary, textAlign: 'center' },
+  circuitCountDone: { color: '#15803D' },
+  resetProgressButton: { alignItems: 'center', paddingTop: 8 },
+  resetProgressText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
   bottomPanel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
