@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
-  TextInput, Platform,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +28,6 @@ export default function SettingsScreen() {
   const [clearing, setClearing] = useState(false);
   const [refreshingOSM, setRefreshingOSM] = useState(false);
   const [dataMode, setDataMode] = useState<'simulation' | 'live'>('simulation');
-  const [liveApiUrl, setLiveApiUrl] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
 
@@ -42,7 +41,6 @@ export default function SettingsScreen() {
       if (res.ok) {
         const data = await res.json();
         setDataMode(data.mode || 'simulation');
-        setLiveApiUrl(data.live_api_url || '');
       }
     } catch {}
     setConfigLoaded(true);
@@ -56,7 +54,7 @@ export default function SettingsScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: dataMode,
-          live_api_url: dataMode === 'live' ? liveApiUrl || null : null,
+          live_api_url: null,
         }),
       });
       if (res.ok) {
@@ -258,25 +256,13 @@ export default function SettingsScreen() {
                 <View style={styles.modeInfo}>
                   <Ionicons name="flash-outline" size={16} color={COLORS.live} />
                   <Text style={[styles.modeInfoText, { color: COLORS.live }]}>
-                    Connect to a live crowd data API or push data via the REST endpoint.
+                    Live crowd data is received via the REST endpoint.
                   </Text>
                 </View>
-                <Text style={styles.inputLabel}>Live API URL (optional)</Text>
-                <TextInput
-                  testID="input-live-api-url"
-                  style={styles.textInput}
-                  placeholder="https://api.example.com/crowd-density"
-                  placeholderTextColor="#9CA3AF"
-                  value={liveApiUrl}
-                  onChangeText={setLiveApiUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
                 <View style={styles.modeInfo}>
                   <Ionicons name="code-slash-outline" size={14} color={COLORS.textSecondary} />
                   <Text style={styles.modeInfoTextSmall}>
-                    Or push data via POST /api/gates/density/push with JSON body
+                    Push data via POST /api/gates/density/push with JSON body
                   </Text>
                 </View>
               </View>

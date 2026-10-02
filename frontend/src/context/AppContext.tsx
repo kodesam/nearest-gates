@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GateData, AmenityData, FALLBACK_GATES, FALLBACK_AMENITIES, KAABA_LOCATION, SAFA_LOCATION, MARWA_LOCATION } from '../data/haramData';
+import { GateData, AmenityData, FALLBACK_GATES, FALLBACK_AMENITIES, KAABA_LOCATION, SAFA_LOCATION, MARWA_LOCATION, HAJJ_CHECKPOINTS } from '../data/haramData';
 import { bearing, haversineDistance } from '../utils/location';
 import { buildApiUrl } from '../utils/backend';
 
@@ -12,6 +12,7 @@ const CACHE_KEY_AMENITIES = '@haram_amenities';
 const CACHE_KEY_LAST_SYNC = '@haram_last_sync';
 const CACHE_KEY_UMRAH_PROGRESS = '@umrah_progress';
 const CACHE_KEY_UMRAH_CIRCUITS = '@umrah_circuits';
+const CACHE_KEY_HAJJ_PROGRESS = '@hajj_progress';
 
 interface UserLocation {
   latitude: number;
@@ -76,6 +77,9 @@ interface AppContextType {
   toggleUmrahCheckpoint: (checkpointId: string) => void;
   updateUmrahCircuit: (checkpointId: 'tawaf' | 'sai', change: number) => void;
   resetUmrahProgress: () => void;
+  completedHajjCheckpoints: string[];
+  toggleHajjCheckpoint: (checkpointId: string) => void;
+  resetHajjProgress: () => void;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -102,6 +106,9 @@ const AppContext = createContext<AppContextType>({
   toggleUmrahCheckpoint: () => {},
   updateUmrahCircuit: () => {},
   resetUmrahProgress: () => {},
+  completedHajjCheckpoints: [],
+  toggleHajjCheckpoint: () => {},
+  resetHajjProgress: () => {},
 });
 
 export function useApp() {
@@ -122,12 +129,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   const [completedUmrahCheckpoints, setCompletedUmrahCheckpoints] = useState<string[]>([]);
   const [umrahCircuitCounts, setUmrahCircuitCounts] = useState<Record<'tawaf' | 'sai', number>>({ tawaf: 0, sai: 0 });
+  const [completedHajjCheckpoints, setCompletedHajjCheckpoints] = useState<string[]>([]);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const densityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecommendationRef = useRef<string>('');
   const tawafTrackingRef = useRef({ lastBearing: null as number | null, rotation: 0 });
   const saiTrackingRef = useRef<'safa' | 'marwa' | null>(null);
   const umrahCompletionNotifiedRef = useRef(false);
+  const hajjCompletionNotifiedRef = useRef(false);
 
   useEffect(() => {
     initLocation();
@@ -224,10 +233,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cachedSync = await AsyncStorage.getItem(CACHE_KEY_LAST_SYNC);
       const cachedUmrahProgress = await AsyncStorage.getItem(CACHE_KEY_UMRAH_PROGRESS);
       const cachedUmrahCircuits = await AsyncStorage.getItem(CACHE_KEY_UMRAH_CIRCUITS);
+      const cachedHajjProgress = await AsyncStorage.getItem(CACHE_KEY_HAJJ_PROGRESS);
       if (cachedGates) setGates(JSON.parse(cachedGates));
       if (cachedAmenities) setAmenities(JSON.parse(cachedAmenities));
       if (cachedSync) setLastSynced(cachedSync);
       if (cachedUmrahProgress) setCompletedUmrahCheckpoints(JSON.parse(cachedUmrahProgress));
+      if (cachedHajjProgress) setCompletedHajjCheckpoints(JSON.parse(cachedHajjProgress));
       if (cachedUmrahCircuits) {
         const parsedCounts = JSON.parse(cachedUmrahCircuits);
         setUmrahCircuitCounts({
@@ -479,6 +490,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.removeItem(CACHE_KEY_UMRAH_CIRCUITS).catch(() => {});
   }, []);
 
+  const toggleHajjCheckpoint = useCallback((checkpointId: string) => {
+    setCompletedHajjCheckpoints((previous) => {
+      const next = previous.includes(checkpointId)
+        ? previous.filter((id) => id !== checkpointId)
+        : [...previous, checkpointId];
+      AsyncStorage.setItem(CACHE_KEY_HAJJ_PROGRESS, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const resetHajjProgress = useCallback(() => {
+    setCompletedHajjCheckpoints([]);
+    hajjCompletionNotifiedRef.current = false;
+    AsyncStorage.removeItem(CACHE_KEY_HAJJ_PROGRESS).catch(() => {});
+  }, []);
+
+  // Auto-mark each Hajj checkpoint as completed once the pilgrim's location enters its radius.
+  useEffect(() => {
+    if (!userLocation) return;
+    const { latitude, longitude } = userLocation;
+    const nearby = HAJJ_CHECKPOINTS.filter((checkpoint) => {
+      const distance = haversineDistance(latitude, longitude, checkpoint.latitude, checkpoint.longitude);
+      return distance <= checkpoint.radiusM;
+    }).map((checkpoint) => checkpoint.id);
+    if (nearby.length === 0) return;
+    setCompletedHajjCheckpoints((previous) => {
+      const missing = nearby.filter((id) => !previous.includes(id));
+      if (missing.length === 0) return previous;
+      const next = [...previous, ...missing];
+      AsyncStorage.setItem(CACHE_KEY_HAJJ_PROGRESS, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [userLocation]);
+
+  useEffect(() => {
+    if (completedHajjCheckpoints.length === HAJJ_CHECKPOINTS.length && !hajjCompletionNotifiedRef.current) {
+      hajjCompletionNotifiedRef.current = true;
+      setNotifications((previous) => [
+        {
+          id: `hajj-complete-${Date.now()}`,
+          type: 'info',
+          title: 'Hajj Completed 🕋',
+          message: 'Congratulations on completing your Hajj! May Allah accept your worship 🤲🌸',
+          timestamp: Date.now(),
+          read: false,
+        },
+        ...previous.slice(0, 9),
+      ]);
+    }
+  }, [completedHajjCheckpoints]);
+
   const gatesWithDistance = React.useMemo(() => {
     if (!userLocation) return gates.map((g) => ({ ...g, distance: 0 }));
     return gates
@@ -533,6 +595,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleUmrahCheckpoint,
         updateUmrahCircuit,
         resetUmrahProgress,
+        completedHajjCheckpoints,
+        toggleHajjCheckpoint,
+        resetHajjProgress,
       }}
     >
       {children}

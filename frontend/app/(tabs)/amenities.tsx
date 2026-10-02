@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, useWindowDimensions,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, useWindowDimensions, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,6 +47,12 @@ export default function AmenitiesScreen() {
     return amenitiesWithDistance.filter((a) => a.category === category);
   }, [amenitiesWithDistance, category]);
 
+  const openDirections = (item: any) => {
+    Linking.openURL(
+      `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`
+    ).catch(() => {});
+  };
+
   const renderAmenity = ({ item }: any) => {
     const color = CATEGORY_COLORS[item.category] || COLORS.secondary;
     const icon = CATEGORY_ICONS[item.category] || 'location-outline';
@@ -55,7 +61,14 @@ export default function AmenitiesScreen() {
       : 0;
 
     return (
-      <View style={styles.card} testID={`amenity-card-${item.id}`}>
+      <TouchableOpacity
+        style={styles.card}
+        testID={`amenity-card-${item.id}`}
+        activeOpacity={0.7}
+        onPress={() => openDirections(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`Get directions to ${item.name}`}
+      >
         <View style={[styles.cardIcon, { backgroundColor: color }]}>
           <Ionicons name={icon} size={18} color={COLORS.surface} />
         </View>
@@ -76,7 +89,7 @@ export default function AmenitiesScreen() {
             <Text style={styles.cardDirection}>{bearingToArrow(dir)}</Text>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

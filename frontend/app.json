@@ -2,7 +2,7 @@
   "expo": {
     "name": "Alharam Navigator",
     "slug": "haram-navigator",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/favicon.png",
     "scheme": "haram-navigator",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.alharam.nav",
-      "versionCode": 4,
+      "versionCode": 6,
       "minSdkVersion": 21,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/favicon.png",
