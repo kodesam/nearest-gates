@@ -35,7 +35,9 @@ Location is shared across all screens, so distances and directions work on the N
    ```
 3. Build app 
    ```
-    eas build --platform android --profile production
+       cd /workspaces/nearest-gates/frontend
+   yarn install
+   npx eas-cli build --platform android --profile internal
    ```
 
 The app uses file-based routing in the `app` directory and supports development builds on Android and iOS.

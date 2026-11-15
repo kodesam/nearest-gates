@@ -108,6 +108,7 @@ export default function AmenitiesScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.pillScroll}
         contentContainerStyle={[styles.pillRow, { paddingHorizontal: contentPadding }]}
       >
         {CATEGORIES.map((cat, index) => (
@@ -167,15 +168,16 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
   title: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: COLORS.primary },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  pillRow: { paddingHorizontal: 20, paddingVertical: 12, paddingRight: 24 },
+  pillScroll: { flexGrow: 0, flexShrink: 0 },
+  pillRow: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, paddingRight: 24 },
   pill: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
     backgroundColor: '#F3F4F6',
-    flexShrink: 0,
+    flexShrink: 0, height: 40, justifyContent: 'center',
   },
   pillSpacing: { marginRight: 8 },
-  pillText: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: COLORS.textSecondary },
+  pillText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: COLORS.textSecondary },
   pillTextActive: { color: '#fff' },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
   card: {
