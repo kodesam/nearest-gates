@@ -4,7 +4,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import { KAABA_LOCATION, UMRAH_CHECKPOINTS } from '../../src/data/haramData';
@@ -340,6 +340,12 @@ export default function MapScreen() {
       <View style={[styles.fabContainer, { right: compactLayout ? 12 : 16, bottom: compactLayout ? 220 : 280 }]}>
         <TouchableOpacity testID="btn-umrah-tracker" style={[styles.fab, styles.umrahFab]} onPress={() => setUmrahTrackerOpen(true)} activeOpacity={0.8}>
           <Ionicons name="footsteps" size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity testID="btn-hajj-route" style={[styles.fab, { backgroundColor: '#C8A951', marginTop: 12 }]} onPress={() => router.push('/hajj')} activeOpacity={0.8}>
+          <MaterialCommunityIcons name="mosque" size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity testID="btn-nabawi-map" style={[styles.fab, { backgroundColor: '#0F766E', marginTop: 12 }]} onPress={() => router.push('/nabawi')} activeOpacity={0.8}>
+          <MaterialCommunityIcons name="mosque-outline" size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity testID="btn-indoor-nav" style={[styles.fab, { backgroundColor: '#6366F1' }]} onPress={() => router.push('/indoor')} activeOpacity={0.8}>
           <Ionicons name="layers" size={22} color="#fff" />

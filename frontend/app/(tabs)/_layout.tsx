@@ -3,7 +3,6 @@ import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppProvider } from '../../src/context/AppContext';
 
 const COLORS = {
   primary: '#1E3F20',
@@ -18,7 +17,7 @@ export default function TabLayout() {
   const bottomInset = Math.max(insets.bottom, 8);
 
   return (
-    <AppProvider>
+    <>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -62,6 +61,42 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="places"
+          options={{
+            title: 'Places',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="compass-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="dua"
+          options={{
+            title: 'Dua',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="book-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="checklist"
+          options={{
+            title: 'Checklist',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="checkbox-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="tasbih"
+          options={{
+            title: 'Tasbih',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="finger-print-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="settings"
           options={{
             title: 'Settings',
@@ -71,7 +106,7 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-    </AppProvider>
+    </>
   );
 }
 

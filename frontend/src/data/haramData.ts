@@ -48,6 +48,30 @@ export const UMRAH_CHECKPOINTS: UmrahCheckpoint[] = [
   { id: 'halq', title: 'Halq or Taqsir', subtitle: 'Trim or shave your hair to finish Umrah', latitude: 21.4225, longitude: 39.8262, icon: 'checkmark-circle' },
 ];
 
+export interface HajjCheckpoint {
+  id: string;
+  title: string;
+  subtitle: string;
+  latitude: number;
+  longitude: number;
+  icon: string;
+  /** Radius in meters within which the pilgrim's location auto-marks this checkpoint visited. */
+  radiusM: number;
+}
+
+// Ordered route of the major Hajj rites/locations, Mecca -> Mina -> Arafat -> Muzdalifah -> Jamarat -> Kaaba.
+export const HAJJ_CHECKPOINTS: HajjCheckpoint[] = [
+  { id: 'ihram_hajj', title: 'Enter Ihram', subtitle: 'Make your intention for Hajj at the Miqat', latitude: 21.4435, longitude: 39.8092, icon: 'moon', radiusM: 500 },
+  { id: 'mina_day8', title: 'Mina (Day of Tarwiyah)', subtitle: 'Spend the 8th of Dhul Hijjah in Mina', latitude: 21.4133, longitude: 39.8933, icon: 'business', radiusM: 700 },
+  { id: 'arafat', title: 'Stand at Arafat', subtitle: 'Wuquf - the pillar of Hajj on the 9th of Dhul Hijjah', latitude: 21.3549, longitude: 39.9835, icon: 'sunny', radiusM: 900 },
+  { id: 'muzdalifah', title: 'Muzdalifah', subtitle: 'Stay overnight and collect pebbles for Jamarat', latitude: 21.3839, longitude: 39.9364, icon: 'moon-outline', radiusM: 700 },
+  { id: 'jamarat_aqabah', title: 'Stone Jamarat Al-Aqabah', subtitle: 'Stone the large pillar on the 10th of Dhul Hijjah', latitude: 21.4225, longitude: 39.8722, icon: 'apps', radiusM: 400 },
+  { id: 'tawaf_ifadah', title: 'Tawaf Al-Ifadah', subtitle: 'Circle the Holy Kaaba seven times', latitude: 21.4225, longitude: 39.8262, icon: 'refresh', radiusM: 150 },
+  { id: 'sai_hajj', title: "Complete Sa'i", subtitle: 'Walk between Safa and Marwah seven times', latitude: 21.4230, longitude: 39.8272, icon: 'walk', radiusM: 150 },
+  { id: 'mina_tashreeq', title: 'Mina (Days of Tashreeq)', subtitle: 'Stone all three Jamarat on the 11th-13th', latitude: 21.4133, longitude: 39.8933, icon: 'business-outline', radiusM: 700 },
+  { id: 'tawaf_wadaa', title: 'Farewell Tawaf', subtitle: 'Final Tawaf before leaving Makkah', latitude: 21.4225, longitude: 39.8262, icon: 'checkmark-circle', radiusM: 150 },
+];
+
 export const HARAM_BOUNDS = {
   north: 21.4248,
   south: 21.4205,
